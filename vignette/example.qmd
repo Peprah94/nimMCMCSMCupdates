@@ -4,23 +4,94 @@ format: pdf
 editor: visual
 ---
 
-## Quarto
-
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+# Packages needed
 
 ```{r}
-1 + 1
+devtools::install_github("Peprah94/nimMCMCSMCupdates")
+library(nimMCMCSMCupdates)
+library(nimble)
+library(nimbleSMC)
+
+set.seed(1)
 ```
 
-You can add options to executable code like this
+
+# Simulating data
+```{r}
+# Setting up MCMC configuration values and variation of parameters
+nIterations = 1000
+nBurnin = 200
+nChains = 3
+nThin = 1
+nyears = 50
+aVars <- c(0.1, 0.8) # changing the intercept
+#High and small values of a
+iNodePrev <- c(49, 45, 20) # The number of years for reduced model
+aVarstag = 2
+iNodetag = 2
+mcmcRun <- FALSE #use mcmc or nimbleSMC for reduced Model
+pfTypeRun = "auxiliary"
+
+sim2 <- function(a, b, c, t, mu0){
+  x <- y <- numeric(t)
+  x[1] <- rnorm(1, mu0, 1 )
+  y[1] <- rnorm(1, x[1], 1)
+  
+  for(k in 2:t){
+    x[k] <- rnorm(1, a*x[k -1] + b, 1)
+    y[k] <- rnorm(1, x[k-1]*c, 1)# + (sigOE * (sqrt(df -2)/df) * rt(1, df))
+  }
+  return(list(x=x, y=y))
+}
+
+message("simulating data for a = ", aVars[aVarstag])
+simData <- sim2(a = aVars[aVarstag],
+                b = 1,
+                c = 1.5,
+                t = nyears,
+                mu0 = 0.2)
+
+str(simData)
+```
+
+
+# Define the NIMBLE model
 
 ```{r}
-#| echo: false
-2 * 2
+stateSpaceCode <- nimbleCode({
+  x[1] ~ dnorm(mu0, 1)
+  y[1] ~ dnorm(x[1], 1)
+  for(i in 2:t){
+    x[i] ~ dnorm(x[i-1] * a + b, 1)
+    y[i] ~ dnorm(x[i] * c, 1)
+  }
+  a ~ dunif(0, 1)
+  b ~ dnorm(0, 1)
+  c ~ dnorm(1,1)
+  mu0 ~ dnorm(0, 1)
+})
+#
+# ## define data, constants, and initial values
+data <- list(
+  #   #y = c(0.213, 1.025, 0.314, 0.521, 0.895, 1.74, 0.078, 0.474, 0.656, 0.802)
+  y = simData$y
+)
+constants <- list(
+  t = nyears
+)
+inits <- list(
+  a = 0.1,
+  b = 0,
+  mu0= 0.2,
+  c = 1
+)
+#
+#
+# ## build the model
+stateSpaceModel <- nimbleModel(stateSpaceCode,
+                               data = data,
+                               constants = constants,
+                               inits = inits,
+                               check = FALSE)
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
