@@ -274,9 +274,9 @@ auxFStepUpdate <- nimbleFunction(
     #         #}
     #         #for(k in 1:nTarget){
              nimCopy(from = mvSamplesEst, to = model, nodes = target,row = iterRun)
-             #if(notFirst) {
-              # model$calculate(prevDeterm)
-             #}
+             if(notFirst) {
+               model$calculate(prevDeterm)
+             }
     #         # model$calculate(prevDeterm)
     #         #}
     #         #mvWSamples[latent,i][currInd] <<- mvWSamplesXSaved[i, currInd]
@@ -294,12 +294,12 @@ auxFStepUpdate <- nimbleFunction(
     #      mvWSamples['wts',i][currInd] <<- 1 #1mvWSamplesWTSaved[i, currInd]
     #       mvWSamples['auxlog',i][currInd] <<- logLikeVals[1, currInd]
     #
-           wts[i] <- mvWSamplesWTSaved[i, currInd]
+           wts[i] <- 1 #mvWSamplesWTSaved[i, currInd]
          }
     #   #maxWt <- max(wts)
     #   #normWts <- exp(wts - maxWt)/sum(exp(wts - maxWt))
     #
-         outLL <- logLikeVals[1, currInd]
+         outLL <- 0 #logLikeVals[1, currInd]
     #
          ess <<- 1/sum(wts^2)
         return(outLL)

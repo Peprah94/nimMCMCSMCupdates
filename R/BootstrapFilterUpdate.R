@@ -227,31 +227,31 @@ bootFStepUpdate <- nimbleFunction(
 
         #copy(mvSamplesEst, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
         #copy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
-        copy(mvWSamplesXSaved, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
-        copy(mvEWSamplesXSaved, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
-
+        nimCopy(mvSamplesEst, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
+        nimCopy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
 
         #if(t == 1){
 #  storeModelValues <<- values(model, targetNodesAsScalar)
 #}
         #for(k in 1:nTarget){
-    copy(from = mvSamplesEst, to = model, nodes = target,row = iterRun)
+    nimCopy(from = mvSamplesEst, to = model, nodes = target,row = iterRun)
     if(notFirst) {
       model$calculate(prevDeterm)
     }
+    #  }
        # model$calculate(prevDeterm)
         #}
         #mvWSamples[latent,i][currInd] <<- mvWSamplesXSaved[i, currInd]
         #mvEWSamples[latent,i][currInd] <<- mvEWSamplesXSaved[i, currInd]
-        mvWSamples['wts',i][currInd] <<- mvWSamplesWTSaved[i, currInd]
-        mvWSamples['bootLL',i][currInd] <<- logLikeVals[1, currInd]
+        mvWSamples['wts',i][currInd] <<- 1#mvWSamplesWTSaved[i, currInd]
+        mvWSamples['bootLL',i][currInd] <<-0 #logLikeVals[1, currInd]
 
-        wts[i] <- mvWSamplesWTSaved[i, currInd]
+        wts[i] <- 1#mvWSamplesWTSaved[i, currInd]
       }
 
      # if(notFirst) model$calculate(prevDeterm)
       #model$calculate(prevDeterm)
-        out[1] <- logLikeVals[1, currInd]
+        out[1] <- 0#logLikeVals[1, currInd]
         out[2] <- 0
         #model$simulate(calc_thisNode_self)
         ## The logProbs of calc_thisNode_self are, correctly, not calculated.
@@ -455,6 +455,7 @@ bootFStepUpdate <- nimbleFunction(
 #' ## logLik <- Cmy_BootF$run(m = 1000)
 #' ## ESS <- Cmy_BootF$returnESS()
 #' ## boot_X <- as.matrix(Cmy_BootF$mvEWSamples, 'x')
+
 buildBootstrapFilterUpdate <- nimbleFunction(
   name = 'buildBootstrapFilterUpdate',
   setup = function(model, nodes, mvWSamplesWTSaved,

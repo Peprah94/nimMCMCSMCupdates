@@ -366,7 +366,9 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
   },
   run = function() {
     #iterRan <<- generateIterRun()
-    storeParticleLP <<- my_particleFilter$getLastLogLik()
+    nimCopy(from = mvSamplesEst, to = model, nodes = target,row = timesRan)
+    storeParticleLP <<- my_particleFilter$run(m = m, iterRun = timesRan, storeModelValues = values(model, target))
+    #storeParticleLP <<- my_particleFilter$getLastLogLik()
     modelLP0 <- storeParticleLP + getLogProb(model, target)
     propValueVector <- generateProposalVector()
     my_setAndCalculate$run(propValueVector)

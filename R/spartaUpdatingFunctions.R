@@ -254,30 +254,30 @@ weights = NULL
 #particleFilterEst is used for returning the weights at the posterior
     #values of the top-level nodes
     if(pfType == "auxiliary"){
-      particleFilter <- nimMCMCSMCupdates::buildAuxiliaryFilterNew(model,
+      particleFilter <- myphdthesis::buildAuxiliaryFilterNew(model,
                                                              latent,
                                                              control = pfControl)
 
-        particleFilterEst <- nimMCMCSMCupdates::buildAuxiliaryFilterNew(estimationModel,
+        particleFilterEst <- myphdthesis::buildAuxiliaryFilterNew(estimationModel,
                                                              latent,
                                                              control = pfControl)
     }
 
     if(pfType == "bootstrap"){
-      particleFilter <- nimMCMCSMCupdates::buildBootstrapFilterNew(model,
+      particleFilter <- myphdthesis::buildBootstrapFilterNew(model,
                                                         latent,
                                                         control = pfControl)
 
-        particleFilterEst <-  nimMCMCSMCupdates::buildBootstrapFilterNew(estimationModel,
+        particleFilterEst <-  myphdthesis::buildBootstrapFilterNew(estimationModel,
                                                               latent,
                                                               control = pfControl)
     }
   }else{
-    particleFilter <- nimMCMCSMCupdates::buildBootstrapFilterNew(model,
+    particleFilter <- myphdthesis::buildBootstrapFilterNew(model,
                                                            latent,
                                                            control = pfControl)
 
-      particleFilterEst <- nimMCMCSMCupdates::buildBootstrapFilterNew(estimationModel,
+      particleFilterEst <- myphdthesis::buildBootstrapFilterNew(estimationModel,
                                                            latent,
                                                            control = pfControl)
   }
@@ -287,9 +287,9 @@ weights = NULL
   compiledParticleFilter <- compileNimble(model,  particleFilter)
 
   #Loglikelihood of last run and the Effective sample sizes
-  message("Running the particle filter")
-  logLik <-   compiledParticleFilter$particleFilter$run(m = nParFiltRun)
-  ESS <-   compiledParticleFilter$particleFilter$returnESS()
+  #message("Running the particle filter")
+  #logLik <-   compiledParticleFilter$particleFilter$run(m = nParFiltRun)
+  #ESS <-   compiledParticleFilter$particleFilter$returnESS()
 
   message("Setting up the MCMC Configuration")
   #model <- model$newModel(replicate = TRUE)
@@ -434,46 +434,131 @@ timetaken2 <- timeEnd - timeStart2
 
 updateUtils <- function(model, #reduced model
                         mcmcOut,
-                        latent, target, n.iter, m){
+                        latent, target, n.iter, m, timeIndex){
 
 latentNodes <- model$expandNodeNames(latent)
+nodes <- findLatentNodes(model, latent, timeIndex)
+
+dims <- lapply(nodes, function(n) nimDim(model[[n]]))
+
+if(length(unique(dims)) > 1)
+  stop('sizes or dimensions of latent states varies')
+vars <- c(model$getVarNames(nodes =  nodes), target)
+
+modelSymbolObjects <- model$getSymbolTable()$getSymbolObjects()[vars]
+
+names <- sapply(modelSymbolObjects, function(x)return(x$name))
+type <- sapply(modelSymbolObjects, function(x)return(x$type))
+size <- lapply(modelSymbolObjects, function(x){
+  y <- x$size
+  t <- length(y)
+  rr <- c()
+  if(t > 1){
+rr <- y
+  }else{
+    if(length(y)>0){
+   rr <- y
+    }else{
+ rr <- 1}
+  }
+  return(rr)
+  }
+)
+
+
+# #names of targets
+# modelSymbolObjects1 <- model$getSymbolTable()$getSymbolObjects()[target[2]]
+# names1 <- sapply(modelSymbolObjects1, function(x)return(x$name))
+# type1 <- sapply(modelSymbolObjects1, function(x)return(x$type))
+# size1 <- lapply(modelSymbolObjects1, function(x)return(x$size))
+#
+#
+#
+# #expand target names
+# targetAsScaler <- model$expandNodeNames(target, returnScalarComponents = TRUE)
+# names <- c(names, targetAsScaler)
+# type <- c(type, rep("double", length(targetAsScaler)))
+#
+# #create additional sizes for the target vars
+# addSize <- list()
+# for(i in 1:length(targetAsScaler)){
+# addSize[[i]] <- length(dims)
+# #names(size)[i + 1] <- target[i]
+# }
+# names(addSize) <- targetAsScaler
+#
+# #include them in the sizes
+# size <- c(size, addSize)
+
+mvSamplesEst <- modelValues(modelValuesConf(vars = names,
+                                            types = type,
+                                            sizes = size))
+#my_initializeModel <- initializeModel(model, silent = silent)
+
+
+# Create mv variables for x state and sampled x states.  If saveAll=TRUE,
+# the sampled x states will be recorded at each time point.
+
 #if(mcmc == TRUE){
-#save weight, weighted and unweighted samples
-weights <- matrix(1, nrow = n.iter, ncol = length(latentNodes))
-unweightedSamples <- mcmcOut[, latentNodes]
-weightedSamples <- mcmcOut[, latentNodes]
+# #save weight, weighted and unweighted samples
+# if(timeIndex = 1){
+# weights <- matrix(1, nrow = n.iter, ncol = length(latentNodes))
+# unweightedSamples <- mcmcOut[, latentNodes]
+# weightedSamples <- mcmcOut[, latentNodes]
+# names <- c(target, latent)
+# type <- rep("double", length(names))
+# size <- as.list(sapply(names, function(x)length(model$expandNodeNames(x))))
+#
+# mvSamplesEst <- modelValues(modelValuesConf(vars = names,
+#                                             types = type,
+#                                             sizes = size))
+#
+# logLike <- matrix(NA, nrow = n.iter, ncol = length(latentNodes))
+# }else{
+#   weights <- matrix(1, nrow = n.iter, ncol = dims[[1]])
+#   unweightedSamples <- NA
+#   weightedSamples <- NA
+#   names <- c(target, latent)
+#   type <- rep("double", length(names))
+#   size <- as.list(sapply(names, function(x)length(model$expandNodeNames(x))))
+#
+#   size[[length(names)]] <- dims[[1]]
+#   mvSamplesEst <- modelValues(modelValuesConf(vars = names,
+#                                               types = type,
+#                                               sizes = size))
+# }
 
 message("Saving unsampled and sampled values in model values for updating")
 #namesEst <- model$getNodeNames(stochOnly = TRUE, includeData = FALSE)
-names <- c(target, latent)
-type <- rep("double", length(names))
-size <- as.list(sapply(names, function(x)length(model$expandNodeNames(x))))
 
- mvSamplesEst <- modelValues(modelValuesConf(vars = names,
-                                            types = type,
-                                             sizes = size))
  resize(mvSamplesEst, n.iter)
 #mvSamplesEst <- nimbleList(type = double())
 #nimbleListTypes <- list(nimbleType(name = 'est', type = 'character'))
 
 ## this nimbleList definition is identical to the one created above
 #mvSamplesEst <- nimbleList(nimbleListTypes)
-logLike <- matrix(NA, nrow = n.iter, ncol = length(latentNodes))
+
 
   # mvSamplesEst[[iter]] <- modelValues(modelValuesConf(vars = names,
   #                                             types = type,
   #                                             sizes = size))
+
+
 for(iter in 1:n.iter){
   #for(i in 1: m){
   for(j in 1:length(names)){
-    mvSamplesEst[[names[j]]][[iter]] <- mcmcOut[iter, model$expandNodeNames(names[j])]
+    if(names[j] == latent & length(size[[1]]) > 1){
+    mvSamplesEst[[names[j]]][[iter]] <- matrix(mcmcOut[iter, model$expandNodeNames(names[j])], nrow = size[[1]][1], ncol = size[[1]][2])
+    }else{
+      mvSamplesEst[[names[j]]][[iter]] <-  mcmcOut[iter, model$expandNodeNames(names[j])]
+    }
     #nimCopy(from = mvSamplesEst, to = model, nodes = names[j],row = i)
   #}
   }
 
-  for(k in 1:length(latentNodes)){
-    logLike[,k] <- 0
-  }
+  # for(k in 1:length(latentNodes)){
+  #   logLike[,k] <- 0
+  # }
 }
 
 
@@ -483,10 +568,10 @@ mvEWS <- mvWS <- mvSamplesEst
 #  mvEWS <- mvWS <- mvSamplesEst < NA
 #}
 
-returnlist = list(weights = weights,
-  logLike = logLike,
-  unweightedSamples = unweightedSamples,
-  weightedSamples = weightedSamples,
+returnlist = list(weights = NA,
+  logLike = NA,
+  unweightedSamples = NA,
+  weightedSamples = NA,
   #compiledParticleFilterEst = compiledParticleFilterEst,
   mvWS = mvWS,
   mvEWS = mvEWS,
@@ -509,7 +594,7 @@ spartaNimUpdates <- function(model, #nimbleModel
                              postReducedMCMC,
                              target
 ){
-  timeStart1 <- Sys.time()
+
   target = MCMCconfiguration[["target"]]
   additionalPars = MCMCconfiguration[["additionalPars"]] #other dependent variables you seek to monitor
   n.iter = MCMCconfiguration[["n.iter"]]
@@ -518,18 +603,26 @@ spartaNimUpdates <- function(model, #nimbleModel
   n.thin = MCMCconfiguration[["n.thin"]]
   iNodePrev = pfControl[["iNodePrev"]]
   M = pfControl[["M"]]
+  timeIndex <- pfControl[["timeIndex"]]
   #iNodePrev = updatePFControl[["iNodePrev"]]
   #M = updatePFControl[["M"]]
   if(is.null(nParFiltRun)) nParFiltRun = 10000
+  if(is.null(timeIndex)) timeIndex = 1
 
+  samplesList  <- vector('list', n.chains)
 
-  updateVars <- updateUtils(reducedModel, #reduced model
+  samplesList <- lapply(as.list(1:n.chains), function(chain.iter){
+    timeStart1 <- Sys.time()
+
+    updateVars <- updateUtils(reducedModel, #reduced model
                 #mcmcOut = postReducedMCMC$samples$chain1,
-                mcmcOut = postReducedMCMC$samples,
+                mcmcOut = postReducedMCMC$samples[[chain.iter]],
                           latent = latent,
               target = target,
               n.iter = n.iter ,
-              m = nParFiltRun)
+              m = nParFiltRun,
+              timeIndex = timeIndex)
+
 
 
   weights = updateVars$weights #weights from reduced model
@@ -542,7 +635,7 @@ spartaNimUpdates <- function(model, #nimbleModel
    names(inits) <- target
    for(i in 1:length(target)){
      expandTarget <- model$expandNodeNames(target[i])
-     inits[[target[i]]] <- c(postReducedMCMC$summary[expandTarget, 'Mean'])
+     inits[[target[i]]] <- c(postReducedMCMC$summary[[chain.iter]][expandTarget, 'Mean'])
    }
 
    model$setInits(inits)
@@ -553,7 +646,7 @@ spartaNimUpdates <- function(model, #nimbleModel
   message("Building particle filter for model")
 
   if(is.null(pfType)){
-    particleFilter <- nimMCMCSMCupdates::buildBootstrapFilterUpdate(model,
+    particleFilter <- myphdthesis::buildBootstrapFilterUpdate(model,
                                                               latent,
                                                               mvWSamplesWTSaved = weights,
                                                               mvWSamplesXSaved = unweightedLatentSamples,
@@ -563,7 +656,7 @@ spartaNimUpdates <- function(model, #nimbleModel
                                                               target = target,
                                                               control = pfControl)
 
-    particleFilterEst <- nimMCMCSMCupdates::buildBootstrapFilterUpdate(estimationModel,
+    particleFilterEst <- myphdthesis::buildBootstrapFilterUpdate(estimationModel,
                                                                  latent,
                                                                  mvWSamplesWTSaved = weights,
                                                                  mvWSamplesXSaved = unweightedLatentSamples,
@@ -578,7 +671,7 @@ spartaNimUpdates <- function(model, #nimbleModel
   if(!is.null(pfType)){
    if(!pfType %in% c("auxiliary", "bootstrap")) stop("Function currently works for auxiliary and bootstap Particle filters")
    if(pfType == "bootstrap"){
-     particleFilter <- nimMCMCSMCupdates::buildBootstrapFilterUpdate(model,
+     particleFilter <- myphdthesis::buildBootstrapFilterUpdate(model,
                                                               latent,
                                                               target = target,
                                                              mvWSamplesWTSaved = weights,
@@ -588,7 +681,7 @@ spartaNimUpdates <- function(model, #nimbleModel
                                                              mvSamplesEst = mvSamplesEst,
                                                               control = pfControl)
 
-    particleFilterEst <- nimMCMCSMCupdates::buildBootstrapFilterUpdate(estimationModel,
+    particleFilterEst <- myphdthesis::buildBootstrapFilterUpdate(estimationModel,
                                                                     latent,
                                                                  target = target,
                                                                     mvWSamplesWTSaved = weights,
@@ -598,7 +691,7 @@ spartaNimUpdates <- function(model, #nimbleModel
                                                                  mvSamplesEst = mvSamplesEst,
                                                                     control = pfControl)
    }else{
-     particleFilter <- nimMCMCSMCupdates::buildAuxiliaryFilterUpdate(model,
+     particleFilter <- myphdthesis::buildAuxiliaryFilterUpdate(model,
                                                               latent,
                                                                target = target,
                                                                mvWSamplesWTSaved = weights,
@@ -608,7 +701,7 @@ spartaNimUpdates <- function(model, #nimbleModel
                                                                mvSamplesEst = mvSamplesEst,
                                                                control = pfControl)
 
-     particleFilterEst <- nimMCMCSMCupdates::buildAuxiliaryFilterUpdate(estimationModel,
+     particleFilterEst <- myphdthesis::buildAuxiliaryFilterUpdate(estimationModel,
                                                                   latent,
                                                                   target = target,
                                                                   mvWSamplesWTSaved = weights,
@@ -620,15 +713,15 @@ spartaNimUpdates <- function(model, #nimbleModel
    }
    }
 
-  message("Compiling the particle filter")
-  #compiling the model
-  compiledParticleFilter <- nimble::compileNimble(model,  particleFilter, showCompilerOutput = FALSE, resetFunctions = FALSE)
-
-  #Log likelihood of last run and the Effective sample sizes
-  message("Running the particle filter")
-  vals <- c(rep(0, length(model$expandNodeNames(target, returnScalarComponents = TRUE))))
-  logLik <-   compiledParticleFilter$particleFilter$run(m = nParFiltRun, iterRun = 1, storeModelValues =  vals)
-  ESS <-   compiledParticleFilter$particleFilter$returnESS()
+  # message("Compiling the particle filter")
+  # #compiling the model
+  # compiledParticleFilter <- nimble::compileNimble(model,  particleFilter, showCompilerOutput = FALSE, resetFunctions = FALSE)
+  #
+  # #Log likelihood of last run and the Effective sample sizes
+  # message("Running the particle filter")
+  # vals <- c(rep(0, length(model$expandNodeNames(target, returnScalarComponents = TRUE))))
+  # logLik <-   compiledParticleFilter$particleFilter$run(m = nParFiltRun, iterRun = 1, storeModelValues =  vals)
+  # ESS <-   compiledParticleFilter$particleFilter$returnESS()
 
   message("Setting up the MCMC Configuration")
   #newModel <- model$newModel(replicate = TRUE)
@@ -674,7 +767,7 @@ if(pfType == "bootstrap"){
   #run MCMC
   mcmc.out <- nimble::runMCMC(compiledList$modelMCMC,
                               niter = n.iter,
-                              nchains = n.chains,
+                              nchains = 1,
                               nburnin = n.burnin,
                               #inits = initsList,
                               thin = n.thin,
@@ -688,7 +781,29 @@ if(pfType == "bootstrap"){
   timetaken1 <- timeEnd - timeStart1
   timetaken2 <- timeEnd - timeStart2
 
-  message(paste("Estimating weights at posteror values of ", target))
+  retList <- list()
+  retList$timeRun <- timetaken2
+  retList$samples <- mcmc.out$samples
+  return(retList)
+  })
+
+  #set names for samples frpm various chains
+  names(samplesList)  <- paste0('chain', 1:n.chains)
+
+  # Time taken for each chain to run
+  timetakenRun <- lapply(samplesList, function(x){x[[1]]})
+  timetakenRun$all.chains <- sum(do.call('c', timetakenRun))
+
+  #as samplesAsCodaMCMC
+  samplesList1 <- coda::as.mcmc.list(lapply(samplesList, function(x){coda::as.mcmc(x[[2]])}))
+
+  #Estimating summary
+  summaryObject <- lapply(samplesList1, samplesSummary)
+  names(summaryObject) <- paste0('chain', 1:n.chains)
+  summaryObject$all.chains <- samplesSummary(do.call('rbind', samplesList1))
+
+
+
   #posteriorEstimates <- mcmc.out$summary$all.chains[target, 'Mean']
 
 #   expandTarget <- model$expandNodeNames(target)
@@ -723,19 +838,11 @@ if(pfType == "bootstrap"){
 
   message("Returning the results")
   #list to return
-  returnList <- list(weights = NA,
-                     unweightedSamples = NA,
-                     weightedSamples = NA,
-                     logLike = NA,
-                     particleFilter = particleFilter,
-                     mcmcSamplesAndSummary = mcmc.out,
-                     timeTakenAll = timetaken1,
-                     timeTakenRun = timetaken2,
-                     ess = NA#,
-                     #compiledParticleFilterEst  = compiledParticleFilterEst
-                     )
-
-  return(returnList)
+  retList <- list()
+retList$samples <- samplesList
+retList$summary <- summaryObject
+retList$timeRun <- timetakenRun
+  return(retList)
 }
 
 
