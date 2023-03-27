@@ -108,44 +108,53 @@ baselineSpartaEstimation <- function(model, #nimbleModel
   timetaken1 <- timeEnd - timeStart1
   timetaken2 <- timeEnd - timeStart2
 
-  message(paste("Estimating weights at posteror values of ", target))
-  #posteriorEstimates <- mcmc.out$summary$all.chains[target, 'Mean']
-expandTarget <- model$expandNodeNames(target)
-  for(i in 1:length(expandTarget)){
-    #estimationModel[[expandTarget[i]]] <- mcmc.out$summary$all.chains[expandTarget[i], 'Mean']
-    estimationModel[[expandTarget[i]]] <- mcmc.out$summary[expandTarget[i], 'Mean']
-  }
+#   message(paste("Estimating weights at posteror values of ", target))
+#   #posteriorEstimates <- mcmc.out$summary$all.chains[target, 'Mean']
+# expandTarget <- model$expandNodeNames(target)
+#   for(i in 1:length(expandTarget)){
+#     #estimationModel[[expandTarget[i]]] <- mcmc.out$summary$all.chains[expandTarget[i], 'Mean']
+#     estimationModel[[expandTarget[i]]] <- mcmc.out$summary[expandTarget[i], 'Mean']
+#   }
+#
+#   message("Compiling the estimation particle filter")
+#   #compiling the model
+#   compiledParticleFilterEst <- compileNimble(estimationModel,  particleFilterEst)
+#
+#   #Loglikelihood of last run and the Effective sample sizes
+#   message("Running the estimation particle filter")
+#   logLik <-   compiledParticleFilterEst$particleFilterEst$run(m = nParFiltRun)
+#   ESS <-   compiledParticleFilterEst$particleFilterEst$returnESS()
+#
+#
+#   #save weights and samples
+#   message("Extracting the weights and samples from particle fiter")
+#   weights <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvWSamples, "wts")
+#   unweightedSamples <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvWSamples, latent)
+#   weightedSamples <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvEWSamples, latent)
+#
 
-  message("Compiling the estimation particle filter")
-  #compiling the model
-  compiledParticleFilterEst <- compileNimble(estimationModel,  particleFilterEst)
-
-  #Loglikelihood of last run and the Effective sample sizes
-  message("Running the estimation particle filter")
-  logLik <-   compiledParticleFilterEst$particleFilterEst$run(m = nParFiltRun)
-  ESS <-   compiledParticleFilterEst$particleFilterEst$returnESS()
-
-
-  #save weights and samples
-  message("Extracting the weights and samples from particle fiter")
-  weights <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvWSamples, "wts")
-  unweightedSamples <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvWSamples, latent)
-  weightedSamples <- as.matrix( compiledParticleFilterEst$particleFilterEst$mvEWSamples, latent)
-
+  #message("Returning the results")
 
   message("Returning the results")
   #list to return
-  returnList <- list(weights = weights,
-                     logLike = NULL,
-                     unweightedSamples = unweightedSamples,
-                     weightedSamples = weightedSamples,
-                     particleFilter = particleFilter,
-                     mcmcSamplesAndSummary = mcmc.out,
-                     timeTakenAll = timetaken1,
-                     timeTakenRun = timetaken2,
-                     ess = ESS)
+  retList <- list()
+  retList$samples <- mcmc.out$samples
+  retList$summary <- mcmc.out$summary
+  retList$timeRun <-  timetaken2
+  return(retList)
 
-  return(returnList)
+  # #list to return
+  # returnList <- list(weights = weights,
+  #                    logLike = NULL,
+  #                    unweightedSamples = unweightedSamples,
+  #                    weightedSamples = weightedSamples,
+  #                    particleFilter = particleFilter,
+  #                    mcmcSamplesAndSummary = mcmc.out,
+  #                    timeTakenAll = timetaken1,
+  #                    timeTakenRun = timetaken2,
+  #                    ess = ESS)
+
+  #return(returnList)
 }
 
 
@@ -407,22 +416,29 @@ timetaken2 <- timeEnd - timeStart2
 }
 
   message("Returning the results")
+  # #list to return
+  # returnList <- list(#weights = weights,
+  #                    #logLike = logLike,
+  #                    #unweightedSamples = unweightedSamples,
+  #                    #weightedSamples = weightedSamples,
+  #                    particleFilter = particleFilter,
+  #                    mcmcSamplesAndSummary = mcmc.out,
+  #                    timeTakenAll = timetaken1,
+  #                    timeTakenRun = timetaken2,
+  #                    ess = ESS,
+  #                    #compiledParticleFilterEst = compiledParticleFilterEst,
+  #                    mvWS = mvWS,
+  #                    mvEWS = mvEWS,
+  #                    mvSamplesEst = mvSamplesEst)
+  #
+  # return(returnList)
+  message("Returning the results")
   #list to return
-  returnList <- list(#weights = weights,
-                     #logLike = logLike,
-                     #unweightedSamples = unweightedSamples,
-                     #weightedSamples = weightedSamples,
-                     particleFilter = particleFilter,
-                     mcmcSamplesAndSummary = mcmc.out,
-                     timeTakenAll = timetaken1,
-                     timeTakenRun = timetaken2,
-                     ess = ESS,
-                     #compiledParticleFilterEst = compiledParticleFilterEst,
-                     mvWS = mvWS,
-                     mvEWS = mvEWS,
-                     mvSamplesEst = mvSamplesEst)
-
-  return(returnList)
+  retList <- list()
+  retList$samples <- mcmc.out$samples
+  retList$summary <- mcmc.out$summary
+  retList$timeRun <-  timetaken2
+  return(retList)
 }
 
 
@@ -614,7 +630,7 @@ spartaNimUpdates <- function(model, #nimbleModel
   samplesList <- lapply(as.list(1:n.chains), function(chain.iter){
     timeStart1 <- Sys.time()
 
-    updateVars <- updateUtils(reducedModel, #reduced model
+    updateVars <- updateUtils(model = reducedModel, #reduced model
                 #mcmcOut = postReducedMCMC$samples$chain1,
                 mcmcOut = postReducedMCMC$samples[[chain.iter]],
                           latent = latent,
@@ -837,9 +853,11 @@ if(pfType == "bootstrap"){
 
 
   message("Returning the results")
+
+  #truth
   #list to return
   retList <- list()
-retList$samples <- samplesList
+retList$samples <- samplesList1
 retList$summary <- summaryObject
 retList$timeRun <- timetakenRun
   return(retList)

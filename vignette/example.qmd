@@ -6,8 +6,8 @@ editor: visual
 
 # Packages needed
 
-```{r}
-devtools::install_github("Peprah94/nimMCMCSMCupdates")
+```{r, warning=FALSE, message=FALSE}
+#devtools::install_github("Peprah94/nimMCMCSMCupdates")
 library(nimMCMCSMCupdates)
 library(nimble)
 library(nimbleSMC)
@@ -57,7 +57,7 @@ str(simData)
 
 # Define the NIMBLE model
 
-```{r}
+```{r, warning=FALSE, message=FALSE}
 stateSpaceCode <- nimbleCode({
   x[1] ~ dnorm(mu0, 1)
   y[1] ~ dnorm(x[1], 1)
@@ -93,5 +93,56 @@ stateSpaceModel <- nimbleModel(stateSpaceCode,
                                constants = constants,
                                inits = inits,
                                check = FALSE)
+```
+
+# Run baseline model
+
+```{r, eval = FALSE}
+newModel <- stateSpaceModel$newModel(replicate = TRUE)
+
+# Function to run the baseline model
+ baselineModel <- nimMCMCSMCupdates::baselineSpartaEstimation(model = newModel, 
+                                                              latent = "x",
+                                                        MCMCconfiguration = list(target = c('a', 'b', 'c', 'mu0'),  
+                                                          additionalPars = "x",n.iter = nIterations,
+                                                          n.chains = nChains,
+                                                          n.burnin = nBurnin,
+                                                          n.thin = nThin))
+
+```
+
+
+# Reduced model
+
+Either with
+
+  + MCMC
+  + SMC
+  
+```{r, eval = FALSE}
+message(paste("Running reduced model for iNodePrev = ", iNodePrev[iNodetag], "and a = ", aVars[aVarstag]))
+message(paste("Reduced model configuration for iNodePrev = ", iNodePrev[iNodetag], "and a = ", aVars[aVarstag]))
+data <- list(
+  y = simData$y[-c((iNodePrev[iNodetag]+1):50)]
+)
+constants <- list(
+  t = iNodePrev[iNodetag]
+)
+newModelReduced <- nimbleModel(stateSpaceCode,
+                               data = data,
+                               constants = constants,
+                               inits = inits,
+                               check = FALSE)
+
+message(paste("Fitting reduced model for iNodePrev = ", iNodePrev[iNodetag], "and a = ", aVars[aVarstag]))
+example1ReducedModel <- spartaNimWeights(model = newModelReduced, latent = "x", mcmc = mcmcRun,
+                                         pfType = pfTypeRun,
+                                         MCMCconfiguration = list(target = c('a', 'b', 'c', 'mu0'),
+                                                                  additionalPars = "x",
+                                                                  n.iter = nIterations,
+                                                                  n.chains = nChains,
+                                                                  n.burnin = nBurnin,
+                                                                  n.thin = nThin)
+)
 ```
 
