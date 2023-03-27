@@ -1,8 +1,197 @@
 ---
 title: "example"
+author:
+- Kwaku Peprah Adjei$^{123}$
+- Robert B. O'Hara$^4$
+bibliography: references.bib
 format: pdf
 editor: visual
+output: 
+  pdf_document:
+    fig_crop: false
+    keep_tex: true
+header-includes: 
+  - \usepackage{mathtools}
+  - \usepackage[left]{lineno}
+  - \linenumbers
+  - \usepackage{longtable}
+  - \usepackage{setspace}\doublespacing
+  - \renewcommand{\abstractname}{Summary}  
+  - \usepackage{bm}
+  - \usepackage{algorithm}
+  - \usepackage{algpseudocode}
+  - \usepackage{tikz}
+indent: true
 ---
+
+# Introduction
+
+Ecological time series data are collected to explain spatio-temporal changes in species distribution. Species distribution models that explain the abundance or occupancy of the species need to be updated and the model parameters updated to reflect the current trends in the species. 
+
+In recent years, the state space models (SSMs) have become widely used in analyzing such data. These SSMs have been fitted in the Bayesian framework using the Markov chain Monte Carlo approach. This approach can be very computationally expensive and takes a relatively long time to fit. Fitting the SSMs with this approach can be infeasible in terms of computational load and time needed to run model which increases as the data gets larger in size.
+
+A faster approach to fitting the SSMs is using the sequential Monte Carlo (SMC) approach. The SMC uses sequential importance sampling (SIS) to obtain importance weights that are used to generate posterior distributions of latent states at every time step and also update the other parameters in the model (using the particle MCMC approach).
+
+This document seeks to demonstrate how once can use MCMC models already fitted to the SSMs and update them using the SMC approach. The bootstrap and auxiliary PFs were discussed in the main papar, but this document will focus on the boostrap particle filters. The reader is expected to be familiar with the nimbleSMC package and the various functions (the reader is referred to Chapter 8 of @nimblepackage and @michaud2021sequential  for details on how to fit SSMs using SMC approach in NIMBLE). The first part provides a brief introduction to the state space models (SSMs), sequential monte carlo (SMC) approaches (specifically the bootstrap particle filter) and the particle MCMC.
+
+ \begin{tikzpicture}
+    \draw[black,thick,latex-latex] (0,0) -- (15,0)
+    node[pos=0,label=above:\textcolor{red}{$t = 1$}]{}
+    node[pos=0.25,text=blue,label=below:\textcolor{black}{$ \underbrace{\begin{bmatrix}
+x_{1}^{(1)} & x_{2}^{(1)} & \ldots &x_{t_r}^{(2)} \\
+x_{1}^{(2)} & x_{2}^{(2)} & \ldots & x_{t_r}^{(2)} \\
+\vdots & \vdots & \ldots & \vdots \\
+x_{1}^{(n.iter)} & x_{2}^{(n.iter)} & \ldots & x_{t_r}^{(n.iter)}
+\end{bmatrix} 
+\begin{bmatrix}
+\mathbb{\theta}^{(1)} \\
+\mathbb{\theta}^{(2)}\\
+\vdots \\
+\mathbb{\theta}^{(n.iter)}
+\end{bmatrix}}_{\text{MCMC used for State Space models}}$}]{}
+node[pos=0.80,text=blue,label=below:\textcolor{blue}{
+$ \underbrace{\begin{bmatrix}
+x_{t_r +1 }^{(1)} &\ldots &x_{T}^{(2)} \\
+x_{t_r +1}^{(2)} & \ldots & x_{T}^{(2)} \\
+\vdots &  \ldots & \vdots \\
+x_{t_r +1}^{(n.iter)} & \ldots & x_{T}^{(n.iter)}
+\end{bmatrix}
+\begin{bmatrix}
+\mathbb{\theta}_{upd}^{(1)} \\
+\mathbb{\theta}_{upd}^{(2)}\\
+\vdots \\
+\mathbb{\theta}_{upd}^{(n.iter)}
+\end{bmatrix}}_{\text{SMC used to update latent states and parameters}}$}]{}
+    node[pos=0.75,text=blue,label=above:\textcolor{blue}{New observation: $y_{t_r +1}, \ldots, y_{T}$}]{}
+        node[pos=0.25,text=black,label=above:\textcolor{black}{Old observation: $y_{1}, \ldots, y_{t_r}$}]{}
+    node[pos=0.50,fill=black,text=black,label=above:\textcolor{red}{$t = t_r$}]{}
+    node[pos=1,fill=blue,text=blue,label=above:\textcolor{red}{$t = T$}]{};
+  \end{tikzpicture}
+
+# State space models
+
+We assume we can obtain a (multivariate) observed time series data denoted by $y_{1:T} = \{y_1, y_2, \ldots, y_T\}$ where $y_t$ is a ($k \times 1$) observed vector. These observations depend on latent (unobserved but in interest) states $x_{1:T} = \{x_1, x_2, \ldots, x_T\}$, where $x_t$ is an ($M \times 1$) state vector and $M$ is the number of particles at each time step $t$. These latent states are assumed to have a first order Markov structure (the latent state at time $t$ depends on latent state at time $t-1$ only) and the observations at each time $t$, $y_t$, given the latent state at that time $x_t$ are independent of previous observations and states.
+
+A summary of the information we have for the SSM framework is given below: \begin{equation}\label{SSM}
+\begin{split}
+\text{Intial state distribution} :& \quad p(x_0| \theta); \quad t = 0 \\
+\text{State model} :& \quad p(x_t| x_{t-1},\theta); \quad t = 1, 2, \ldots, T \\
+\text{Observation model} :& \quad p(y_t| x_{t},\theta); \quad t = 1, 2, \ldots, T \\
+\end{split}
+\end{equation} where $\theta$ are top-level parameters (assumed to be deterministic in equation \eqref{SSM}).
+
+Furthermore, we assume that we have already fitted a SSM, either with MCMC or SMC approaches, to the observed data from time $t = 1$ to $t = t_r$, where $t_r < T$. From the fitted SSM, the $M \times t_r$ latent state particles and weights at $t = t_r$ are stored, and used to update the posterior samples of the latent states $x_{t_r +1}, x_{t_r + 2}, \ldots, x_T$ and top -level parameters $\theta$ using SMC methods to be discussed below.
+
+
+## Sequential Monte Carlo (SMC) methods
+
+The SMC methods used sequential importance sampling (SIS) technique to estimate the filtering distributions [@doucet2001introduction, @michaud2021sequential]. At each time step $t$, the latent state $x_t$ is proposed from the previous state $x_{t-1}$ from a proposal distribution or importance function, $\pi(x_t|x_{t-1}, y_{1:t}, \theta)$, and posterior samples of $x_t$ are drawn from the proposed samples using importance weights $w_t$:
+
+```{=tex}
+\begin{equation}\label{importanceWeights1}
+w_t^{(i)} \propto \frac{p(x_t^{(i)}|x_{t-1}^{(i)}, y_{1:t},\theta)}{\pi(x_t^{(i)}|x_{t-1}^{(i)}, y_{1:t},\theta)}
+\end{equation}
+```
+and iteratively as:
+
+```{=tex}
+\begin{equation}\label{importanceWeights2}
+w_t^{(i)} \propto w_{t-1}^{(i)} \frac{p(x_t^{(i)}|x_{t-1}^{(i)}\theta) p(y_{1:t}|x_t^{(i)})}{\pi(x_t^{(i)}|x_{t-1}^{(i)}, y_{1:t},\theta)}
+\end{equation}
+```
+for $i = 1, 2, \ldots, M$ particles.
+
+The importance function chosen for SIS is critical to the performance of the SMC method [@arulampalam2002tutorial, @doucet2001introduction, @michaud2021sequential], the prior distribution of the latent states are chosen as the importance function. In this case, the importance weights in equation \eqref{importanceWeights2} simplifies to:
+
+```{=tex}
+\begin{equation}\label{importanceWeights3}
+w_t^{(i)} \propto w_{t-1}^{(i)} p(y_t|x_{t}^{(i)}, \theta);
+\end{equation}
+```
+for $i = 1, 2, \ldots, M$ particles. See @doucet2001introduction for the details of the simplification.
+
+This suggests that from time steps $t = t_{r+1}$ to $t = T$ (where we are have new data), we only need information about the weights at $t= t_r$ and the SSM distributions in equation \eqref{SSM} (which are assumed to be known), we can use any of the SMC algorithms to be briefly discussed below to estimating posterior distribution of latent states and update the top - level parameters. The saved posterior samples of latent state for time steps $t = 1, 2, \ldots, t_r$ are assumed to be equally weighted samples (i.e. they have equal weights and we choose $w_t^{(i)} = 1, \forall i$). In summary, our proposed framework uses the following information for generating the posterior samples of the latent states:
+
+\begin{equation}\label{weights} 
+\left\{
+\begin{array}{lll}
+      w_t^{(i)} = 1 & x_{t}^{(i)} \text{ from RM } & \text{for } 1\leq  t\leq t_r \\
+      w_t^{(i)} \text{ defined by equations } \eqref{importanceWeights1} - \eqref{importanceWeights3} & x_{t}^{(i)} \text{ from SMC }& \text{for } t_{r+1}\leq  t\leq T\\
+\end{array} 
+\right. 
+\end{equation} where RM denotes a reduced SSM fitted to the observed data $y_{1:t_r}$ using either MCMC or any SMC method to be discussed later.
+
+### Bootstrap particle filter
+
+The bootstrap particle filter (hereafter, BPF) re-samples with replacement the $M$ particles ($x_{0:t}^{(i)}; i = 1, 2,\ldots, M$) from the set of proposed samples ($\tilde{x}_{0:t}^{(i)}; i = 1, 2,\ldots, M$) according the importance weights ($w_t^{(i)}; i = 1, 2,\ldots, M$) defined in equations \eqref{importanceWeights1} to \eqref{importanceWeights3}. This re-sampling approach mitigates the particle degeneracy problem, where unimportant particles are propagated through time [@arulampalam2002tutorial, @doucet2001introduction].
+
+To implement the changes proposed in this paper; the following changes were made to the bootstrap PF algorithm implemented in nimble SMC:
+
+\begin{algorithm}
+\caption{Bootstrap filter with constant top-level nodes $\theta$}\label{alg:bootstrap PF}
+\begin{algorithmic}
+\For{$t$ in $1:t_{r}$ and $i$ in $1:n.iter$ } 
+    \For{$m$ in $1:M$}
+  \State Set $w_t^{(m)} := 1$; $x_t^{(m)} := x_t^{(i)}$
+  \EndFor
+\EndFor
+
+\For{$t$ in $t_{r+1}:T$} 
+    \For{$m$ in $1:M$}
+  \State Generate $\Tilde{x}_{t}^{(m)} \sim q(x_{t}| x_{t-1}^{(m), y_{t}})$\\
+  \State Calculate unnormalised weight $w_t^{(m)} = \frac{f(\Tilde{x}_t^{(m)}| x_{t-1}^{(m)})g(y_t | \Tilde{x}_t^{(m)})}{q(x_{t}| x_{t-1}^{(m), y_{t}})} \pi_{t-1}^{(m)}$
+  \EndFor
+    \For{$m$ in $1:M$}
+  \State Normalize $w_t^{(m)}$ as $\pi_t^{(m)} := \frac{w_t^{(m)}}{\sum_{i = 1}^M w_t^{(m)}}$
+  \EndFor
+      \For{$m$ in $1:M$}
+  \State Sample an index $j$ from the set of $i, \ldots, M$ with probabilities $\{ \pi_t^{(m)} \}_{m = 1}^{M}$
+  \State Set $x_t^{(m)} = \Tilde{x}_t^{(m)}$
+  \State $\pi_t^{(m)} = \frac{1}{M}$
+  \EndFor
+  \State Calculate $\Tilde{p}(y_{t|1:t-1}) = \frac{1}{M} \sum_{m = 1}^M w_t^{(m)}$
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+
+
+### Particle Markov Chain Monte Carlo
+
+For all the SMC methods discussed so far, we have assumed that the parameters $\theta$ are deterministic. In most ecological applications, these parameters are stochastic. For example, these parameters can be effects we may be interested in making inferences about. Using the Bayesian framework, the joint likelihood of the latent states and parameters is $p(\theta, x_{1:t}| y_{1:t}) = p_{\theta}(x_{1:t}|y_{1:t}) p(\theta);$ where $p(\theta)$ is the prior distribution for the top-level parameters $\theta$.
+
+The particle MCMC [@andrieu2010particle] makes it possible to jointly sample from the posterior distribution of the states and the top-level parameters $\theta$. This algorithm first proposes a value for the top-level parameter ($\theta^{\star}$) from a proposal distribution fits a SMC method described above with the proposed value $\theta^{\star}$. This proposed value is accepted or rejected based on a Metropolis Hasting acceptance ratio (MHAR) defined as:
+
+\begin{equation}\label{MHAR}
+\begin{split}
+MHAR & = \frac{p_{\theta}(y_{1:t}) p(\theta^{\star})\pi(\theta|\theta^{\star})}{p_{\theta^{\star}}(y_{1:t}) p(\theta)\pi(\theta^{\star}|\theta)};\\
+ \text{where} \quad p_{\theta}(y_{1:t}) & = p_{\theta}(y_{1})\prod_{t=2}^{T}p_{\theta}(y_{n}| y_{n-1}) \\
+  & = p_{\theta}(y_{1})\prod_{t=2}^{T}\sum_{i = 1}^{M} w_{t|\theta}^{i}\\
+\end{split}
+\end{equation} where $p_{\theta}(y_{1:t})$ is the marginal distribution of the observed data given the parameter $\theta$, $w_{t|\theta}^{i}$ is the $i^{th}$ importance weight at time $t$ given the value of $\theta$, $p(\theta^{\star})$ and $p(\theta)$ is the prior distribution of $\theta^{\star}$ and $\theta$ respectively and $\pi(.|.)$ is the proposal distribution for the parameters $\theta$.
+
+Adapting the MHAR defined in equation \eqref{MHAR} and weights in equation \eqref{weights} for our proposed framework, the proposed parameter value ($\theta^{\star}$) is now accepted or rejected with MHAR:
+
+\begin{equation}\label{MHARupd}
+MHAR_{upd} = \frac{p(\theta^{\star})\pi(\theta|\theta^{\star})\prod_{t=t_r +1}^{T}\sum_{i = 1}^{M} w_{t|\theta^{\star}}^{i}}{p(\theta)\pi(\theta^{\star}|\theta)\prod_{t=t_r+1}^{T}\sum_{i = 1}^{M} w_{t|\theta}^{i}};
+\end{equation} where $w_{t|\theta}^{i}$ is the $i^{th}$ importance weight at time $t$ given the value of $\theta$, $p(\theta^{\star})$ and $p(\theta)$ is the prior distribution of $\theta^{\star}$ and $\theta$ respectively and $\pi(.|.)$ is the proposal distribution for the parameters $\theta$. See Supplementary Information 1 for details of the MHAR defined by equations \eqref{MHAR} and \eqref{MHARupd}.
+
+\begin{algorithm}
+\caption{Particle MCMC using the proposed updated model}\label{alg:pMCMC}
+\begin{algorithmic}
+\For{$i$ in $1:n.iter$} 
+  \State Generate $\theta^{\star} \sim q(\theta | \theta_{r}^{(i)})$
+  \State Run a particle filter with algorithm one to estimate the marginal likelihood $\Tilde{p}(y_{1:T}|\theta^{\star})$
+  \State At the last time step $T$, draw $x^{\star}_{1:T} \sim p(x_{1:T}| y_{1:T}, \theta^{\star})$ from the full particle filter history
+  \State Compute the Metropolis Hasting acceptance ratio in an equation \ref{MHARupd} and choose $a^{\star} = min(1, MHARupd)$
+  \State Generate $r \sim unif(0,1)$
+\If{$a^{\star} > r$} 
+    \State Set $\theta^{(i)} := \theta^{\star}$, $x^{(i)}_{1:T} = x^{\star}_{1:T| \theta^{\star}}$
+\Else
+    \State Set $\theta^{(i)} := \theta^{(i)}_{r}$, $x^{(i)}_{1:T} = x_{ \{1:T \} | {\theta_r^{(i)}}}$
+\EndIf 
+\EndFor
+\end{algorithmic}
+\end{algorithm}
 
 # Packages needed
 
@@ -101,14 +290,15 @@ stateSpaceModel <- nimbleModel(stateSpaceCode,
 newModel <- stateSpaceModel$newModel(replicate = TRUE)
 
 # Function to run the baseline model
- baselineModel <- nimMCMCSMCupdates::baselineSpartaEstimation(model = newModel, 
-                                                              latent = "x",
-                                                        MCMCconfiguration = list(target = c('a', 'b', 'c', 'mu0'),  
-                                                          additionalPars = "x",n.iter = nIterations,
-                                                          n.chains = nChains,
-                                                          n.burnin = nBurnin,
-                                                          n.thin = nThin))
-
+ baselineModel <- nimMCMCSMCupdates::baselineSpartaEstimation(
+   model = newModel, 
+   latent = "x",
+   MCMCconfiguration = list(target = c('a', 'b', 'c', 'mu0'),
+                            additionalPars = "x",
+                            n.iter = nIterations,
+                            n.chains = nChains,
+                            n.burnin = nBurnin,
+                            n.thin = nThin))
 ```
 
 
@@ -120,13 +310,11 @@ Either with
   + SMC
   
 ```{r, eval = FALSE}
-message(paste("Running reduced model for iNodePrev = ", iNodePrev[iNodetag], "and a = ", aVars[aVarstag]))
-message(paste("Reduced model configuration for iNodePrev = ", iNodePrev[iNodetag], "and a = ", aVars[aVarstag]))
 data <- list(
-  y = simData$y[-c((iNodePrev[iNodetag]+1):50)]
+  y = simData$y[-c((iNodePrev+1):50)]
 )
 constants <- list(
-  t = iNodePrev[iNodetag]
+  t = iNodePrev
 )
 newModelReduced <- nimbleModel(stateSpaceCode,
                                data = data,
@@ -134,15 +322,47 @@ newModelReduced <- nimbleModel(stateSpaceCode,
                                inits = inits,
                                check = FALSE)
 
-message(paste("Fitting reduced model for iNodePrev = ", iNodePrev[iNodetag], "and a = ", aVars[aVarstag]))
-example1ReducedModel <- spartaNimWeights(model = newModelReduced, latent = "x", mcmc = mcmcRun,
-                                         pfType = pfTypeRun,
-                                         MCMCconfiguration = list(target = c('a', 'b', 'c', 'mu0'),
-                                                                  additionalPars = "x",
-                                                                  n.iter = nIterations,
-                                                                  n.chains = nChains,
-                                                                  n.burnin = nBurnin,
-                                                                  n.thin = nThin)
+example1ReducedModel <- spartaNimWeights(
+  model = newModelReduced, 
+  latent = "x", 
+  mcmc = mcmcRun,
+  pfType = pfTypeRun,
+  MCMCconfiguration = list(target = c('a', 'b', 'c', 'mu0'),
+                           additionalPars = "x",
+                           n.iter = nIterations,
+                           n.chains = nChains,
+                           n.burnin = nBurnin,
+                           n.thin = nThin)
 )
 ```
 
+
+# Updated model
+
+```{r, eval = FALSE}
+example1UpdatedModel <- spartaNimUpdates(
+  model = stateSpaceModel, #nimble model
+  reducedModel = newModelReduced,
+  latent = "x", #latent variable
+  pfType = pfTypeRun,
+  MCMCconfiguration = list(target = c('a', 'b', 'c', 'mu0'),
+                           additionalPars = "x",
+                           n.iter = (nIterations - nBurnin)/nThin,
+                           n.chains = nChains,
+                           n.burnin = 0,
+                           n.thin = 1),  #saved loglikelihoods from reduced model
+  postReducedMCMC = example1ReducedModel,# MCMC summary to use as initial values
+  pfControl = list(saveAll = TRUE,
+                   lookahead = "mean",
+                   smoothing = FALSE,
+                   mcmc = mcmcRun,
+                   M = nyears - iNodePrev,
+                   iNodePrev = iNodePrev)
+)
+```
+
+
+# References
+
+::: {#refs}
+:::
