@@ -197,6 +197,7 @@ spartaNimWeights <- function(model, #nimbleModel
                             niter = n.iter,
                             nchains = n.chains,
                             nburnin = n.burnin,
+                            thin = n.thin
                             setSeed = TRUE,
                             samples=TRUE,
                             samplesAsCodaMCMC = TRUE,
@@ -222,30 +223,30 @@ spartaNimWeights <- function(model, #nimbleModel
 #particleFilterEst is used for returning the weights at the posterior
     #values of the top-level nodes
     if(pfType == "auxiliary"){
-      particleFilter <- myphdthesis::buildAuxiliaryFilterNew(model,
+      particleFilter <- nimMCMCSMCupdates::buildAuxiliaryFilterNew(model,
                                                              latent,
                                                              control = pfControl)
 
-        particleFilterEst <- myphdthesis::buildAuxiliaryFilterNew(estimationModel,
+        particleFilterEst <- nimMCMCSMCupdates::buildAuxiliaryFilterNew(estimationModel,
                                                              latent,
                                                              control = pfControl)
     }
 
     if(pfType == "bootstrap"){
-      particleFilter <- myphdthesis::buildBootstrapFilterNew(model,
+      particleFilter <- nimMCMCSMCupdates::buildBootstrapFilterNew(model,
                                                         latent,
                                                         control = pfControl)
 
-        particleFilterEst <-  myphdthesis::buildBootstrapFilterNew(estimationModel,
+        particleFilterEst <-  nimMCMCSMCupdates::buildBootstrapFilterNew(estimationModel,
                                                               latent,
                                                               control = pfControl)
     }
   }else{
-    particleFilter <- myphdthesis::buildBootstrapFilterNew(model,
+    particleFilter <- nimMCMCSMCupdates::buildBootstrapFilterNew(model,
                                                            latent,
                                                            control = pfControl)
 
-      particleFilterEst <- myphdthesis::buildBootstrapFilterNew(estimationModel,
+      particleFilterEst <- nimMCMCSMCupdates::buildBootstrapFilterNew(estimationModel,
                                                            latent,
                                                            control = pfControl)
   }
@@ -464,13 +465,13 @@ spartaNimUpdates <- function(model, #nimbleModel
   message("Building particle filter for model")
 
   if(is.null(pfType)){
-    particleFilter <- myphdthesis::buildBootstrapFilterUpdate(model,
+    particleFilter <- nimMCMCSMCupdates::buildBootstrapFilterUpdate(model,
                                                               latent,
                                                               mvSamplesEst = mvSamplesEst,
                                                               target = target,
                                                               control = pfControl)
 
-    particleFilterEst <- myphdthesis::buildBootstrapFilterUpdate(estimationModel,
+    particleFilterEst <- nimMCMCSMCupdates::buildBootstrapFilterUpdate(estimationModel,
                                                                  latent,
                                                                  mvSamplesEst = mvSamplesEst,
                                                                  target = target,
@@ -481,25 +482,25 @@ spartaNimUpdates <- function(model, #nimbleModel
   if(!is.null(pfType)){
    if(!pfType %in% c("auxiliary", "bootstrap")) stop("Function currently works for auxiliary and bootstap Particle filters")
    if(pfType == "bootstrap"){
-     particleFilter <- myphdthesis::buildBootstrapFilterUpdate(model,
+     particleFilter <- nimMCMCSMCupdates::buildBootstrapFilterUpdate(model,
                                                               latent,
                                                               target = target,
                                                              mvSamplesEst = mvSamplesEst,
                                                               control = pfControl)
 
-    particleFilterEst <- myphdthesis::buildBootstrapFilterUpdate(estimationModel,
+    particleFilterEst <- nimMCMCSMCupdates::buildBootstrapFilterUpdate(estimationModel,
                                                                     latent,
                                                                  target = target,
                                                                  mvSamplesEst = mvSamplesEst,
                                                                     control = pfControl)
    }else{
-     particleFilter <- myphdthesis::buildAuxiliaryFilterUpdate(model,
+     particleFilter <- nimMCMCSMCupdates::buildAuxiliaryFilterUpdate(model,
                                                               latent,
                                                                target = target,
                                                                mvSamplesEst = mvSamplesEst,
                                                                control = pfControl)
 
-     particleFilterEst <- myphdthesis::buildAuxiliaryFilterUpdate(estimationModel,
+     particleFilterEst <- nimMCMCSMCupdates::buildAuxiliaryFilterUpdate(estimationModel,
                                                                   latent,
                                                                   target = target,
                                                                   mvSamplesEst = mvSamplesEst,
