@@ -197,7 +197,7 @@ spartaNimWeights <- function(model, #nimbleModel
                             niter = n.iter,
                             nchains = n.chains,
                             nburnin = n.burnin,
-                            thin = n.thin
+                            thin = n.thin,
                             setSeed = TRUE,
                             samples=TRUE,
                             samplesAsCodaMCMC = TRUE,
@@ -533,8 +533,7 @@ if(pfType == "bootstrap"){
                                           pfControl = list(saveAll = TRUE, M = M, iNodePrev = iNodePrev),
                                           pfNparticles = nParFiltRun,
                                           pfType = pfTypeUpdate,
-                                          mvSamplesEst = mvSamplesEst,
-                                          logLikeVals = loglike))
+                                          mvSamplesEst = mvSamplesEst))
 
   modelMCMCconf$addMonitors(additionalPars)
 
