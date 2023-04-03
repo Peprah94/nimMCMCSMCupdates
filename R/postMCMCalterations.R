@@ -296,7 +296,9 @@ if(ESS) retlist$ess <- ESSret
 compareModelsPlots <- function(models = list(),
                                 modelNames = NULL,
                                   n.chains = NULL,
+                               line_type = NULL,
                                   nodes = c(),
+                               bacthSize = 500,
                                   method = "bm", #parameterisations for mcse.mat
                                   metrics = list(ESS = TRUE,
                                                        efficiency = TRUE,
@@ -326,9 +328,9 @@ compareModelsPlots <- function(models = list(),
 timesRet <- lapply(models, function(x){
     nDim <- length(x$timeRun)
     if(nDim == 1){
-      x$timeRun
+      as.numeric(x$timeRun, units = "secs")
     }else{
-      x$timeRun$all.chains
+      as.numeric(x$timeRun$all.chains, units = "secs")
     }
   })%>%
     do.call('c', .)
@@ -343,6 +345,7 @@ MCseRet <- lapply(seq_along(models), function(i){
     if(nDim >2 ){
       ret <- lapply(as.list(1:n.chains), function(y){seEst <- mcmcse::mcse.mat(as.matrix(x$samples[[y]][,nodes]),
                                                                                method = "bm",
+                                                                               size = bacthSize,
                                                                                g = NULL)%>%
         as.data.frame()%>%
         dplyr::select(se)
@@ -402,8 +405,10 @@ efficiencyRet <- lapply(seq_along(models), function(i){
   ###################
 
   modelNamesPlots <- rep(modelNames, each = length(nodes))
+  line_type <- rep(line_type, each = length(nodes))
 
   #efficiency plot
+  if(is.null(line_type)){
   efficiencyPlot <- efficiencyRet%>%
     do.call("rbind", .)%>%
     mutate(model = modelNamesPlots)%>%
@@ -412,9 +417,22 @@ efficiencyRet <- lapply(seq_along(models), function(i){
                                   group = model,
                                   col = as.factor(model)))+
     geom_point()+
-    geom_line()+
+    geom_line(aes(linetype = as.factor(model)))+
     theme_bw()+
     ylab("Efficiency = ESS/Run time")
+  }else(
+    efficiencyPlot <- efficiencyRet%>%
+      do.call("rbind", .)%>%
+      mutate(model = modelNamesPlots)%>%
+      ggplot2::ggplot(mapping = aes(x = Parameter,
+                                    y = efficiency,
+                                    group = model,
+                                    col = as.factor(model)))+
+      geom_point()+
+      geom_line(linetype = line_type)+
+      theme_bw()+
+      ylab("Efficiency = ESS/Run time")
+  )
 
   #effective sample size plot
   effectivePlot <- efficiencyRet%>%
@@ -425,7 +443,7 @@ efficiencyRet <- lapply(seq_along(models), function(i){
                                   group = model,
                                   col = as.factor(model)))+
     geom_point()+
-    geom_line()+
+    geom_line(aes(linetype = as.factor(model)))+
     theme_bw()+
     ylab("Effective Sample Size (ESS)")
 
@@ -437,7 +455,7 @@ efficiencyRet <- lapply(seq_along(models), function(i){
                                   group = model,
                                   col = as.factor(model)))+
     geom_point()+
-    geom_line()+
+    geom_line(aes(linetype = as.factor(model)))+
     theme_bw()+
     ylab("Monte Carlo standard error (MCSE)")
 
@@ -523,85 +541,103 @@ compareModelsMeanPlots <- function(models = list(),
     x$summary$all.chains
   })
 
+ if(is.null(modelNames)) modelNames <- paste("Model", 1: length(models))
+
+ nodeNames <- fullModel$expandNodeNames(nodes)
 # Mean plot
  meanPlot <- lapply(seq_along(allData), function(i){
    x <- allData[[i]]
-  lengthNodes <- length(sapply(nodes, function(r){rownames(x)[grepl(r, rownames(x))]}))
-  nodeNames <- as.vector(sapply(nodes, function(r){c(rownames(x)[grepl(r, rownames(x))])}))
+  #lengthNodes <- length(sapply(nodes, function(r){rownames(x)[grepl(r, rownames(x))]}))
+  #nodeNames <- as.vector(sapply(nodes, function(r){c(rownames(x)[grepl(r, rownames(x))])}))
 
-  output <-  sapply(nodes, function(r){x[grepl(r, rownames(x)),"Mean"]})%>%
+   lengthNodes <- sum(rownames(x) %in% nodeNames)
+
+  output <-  x[rownames(x)[rownames(x) %in% nodeNames],"Mean"]%>%
   #outputDF <- data.frame(Parameters = names(grepl(nodes, rownames(x))),
                          #output = output)
    # t()%>%
     data.frame()%>%
-     dplyr::mutate(Parameters = nodeNames,
-                   model = rep(paste0("model", i), lengthNodes))%>%
+     dplyr::mutate(Parameters = rownames(x)[rownames(x) %in% nodeNames],
+                   model = rep(modelNames[i], lengthNodes),
+                   row = row_number())%>%
      dplyr::full_join(data.frame(Parameters = fullModel$expandNodeNames(nodes),
-                                 model = rep(paste0("model", i), length(fullModel$expandNodeNames(nodes)))),
+                                 model = rep(modelNames[i], length(fullModel$expandNodeNames(nodes)))),
                       by = c("Parameters", "model"))
   colnames(output)[1] <- "mean"
   return(output)
  })%>%
    do.call("rbind", .)%>%
-   ggplot(., mapping = aes(x = as.factor(Parameters), y = mean, col = model, group = model))+
+   ggplot(., mapping = aes(x = reorder(as.factor(Parameters), row), y = mean, col = model, group = model))+
    geom_point()+
    geom_line()+
    theme_bw()+
-   xlab("Parameters")
+   xlab("Parameters")+
+   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+         legend.position = "bottom")
 
  # Mean plus/minus standard deviation
  sePlot <- lapply(seq_along(allData), function(i){
    x <- allData[[i]]
-   lengthNodes <- length(sapply(nodes, function(r){rownames(x)[grepl(r, rownames(x))]}))
-   nodeNames <- as.vector(sapply(nodes, function(r){c(rownames(x)[grepl(r, rownames(x))])}))
+   #lengthNodes <- length(sapply(nodes, function(r){rownames(x)[grepl(r, rownames(x))]}))
+   #nodeNames <- as.vector(sapply(nodes, function(r){c(rownames(x)[grepl(r, rownames(x))])}))
 
-   output <-  sapply(nodes, function(r){x[grepl(r, rownames(x)),c(1,3)]})%>%
+   lengthNodes <- sum(rownames(x) %in% nodeNames)
+
+   output <-  x[rownames(x)[rownames(x) %in% nodeNames],c(1,3)]%>%
      #outputDF <- data.frame(Parameters = names(grepl(nodes, rownames(x))),
      #output = output)
-     t()%>%
+     # t()%>%
      data.frame()%>%
-     dplyr::mutate(Parameters = nodeNames,
-                   model = rep(paste0("model", i), lengthNodes))%>%
+     dplyr::mutate(Parameters = rownames(x)[rownames(x) %in% nodeNames],
+                   model = rep(modelNames[i], lengthNodes),
+                   row = row_number())%>%
      dplyr::full_join(data.frame(Parameters = fullModel$expandNodeNames(nodes),
-                                 model = rep(paste0("model", i), length(fullModel$expandNodeNames(nodes)))),
+                                 model = rep(modelNames[i], length(fullModel$expandNodeNames(nodes)))),
                       by = c("Parameters", "model"))
    colnames(output)[1:2] <- c("mean", "se")
    return(output)
  })%>%
    do.call("rbind", .)%>%
-   ggplot(., mapping = aes(x = as.factor(Parameters), y = mean, col = model, group = model))+
+   ggplot(., mapping = aes(x = reorder(as.factor(Parameters), row), y = mean, col = model, group = model))+
    geom_point()+
    geom_line()+
    geom_ribbon(aes(ymin = mean - se, ymax = mean + se, fill = model), alpha = 0.1) +
    theme_bw()+
-   xlab("Parameters")
+   xlab("Parameters")+
+   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+         legend.position = "bottom")
 
 # Mean with credible interval
  confintPlot <- lapply(seq_along(allData), function(i){
    x <- allData[[i]]
-   lengthNodes <- length(sapply(nodes, function(r){rownames(x)[grepl(r, rownames(x))]}))
-   nodeNames <- as.vector(sapply(nodes, function(r){c(rownames(x)[grepl(r, rownames(x))])}))
+   #lengthNodes <- length(sapply(nodes, function(r){rownames(x)[grepl(r, rownames(x))]}))
+   #nodeNames <- as.vector(sapply(nodes, function(r){c(rownames(x)[grepl(r, rownames(x))])}))
 
-   output <-  sapply(nodes, function(r){x[grepl(r, rownames(x)),c(1,4,5)]})%>%
+   lengthNodes <- sum(rownames(x) %in% nodeNames)
+
+   output <-  x[rownames(x)[rownames(x) %in% nodeNames],c(1,4,5)]%>%
      #outputDF <- data.frame(Parameters = names(grepl(nodes, rownames(x))),
      #output = output)
-     t()%>%
+     # t()%>%
      data.frame()%>%
-     dplyr::mutate(Parameters = nodeNames,
-                   model = rep(paste0("model", i), lengthNodes))%>%
+     dplyr::mutate(Parameters = rownames(x)[rownames(x) %in% nodeNames],
+                   model = rep(modelNames[i], lengthNodes),
+                   row = row_number())%>%
      dplyr::full_join(data.frame(Parameters = fullModel$expandNodeNames(nodes),
-                                 model = rep(paste0("model", i), length(fullModel$expandNodeNames(nodes)))),
+                                 model = rep(modelNames[i], length(fullModel$expandNodeNames(nodes)))),
                       by = c("Parameters", "model"))
    colnames(output)[1:3] <- c("mean", "lower", "upper")
    return(output)
  })%>%
    do.call("rbind", .)%>%
-   ggplot(., mapping = aes(x = as.factor(Parameters), y = mean, col = model, group = model))+
+   ggplot(., mapping = aes(x = reorder(as.factor(Parameters), row), y = mean, col = model, group = model))+
    geom_point()+
    geom_line()+
    geom_ribbon(aes(ymin = lower, ymax = upper, fill = model), alpha = 0.1) +
    theme_bw()+
-   xlab("Parameters")
+   xlab("Parameters")+
+   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+         legend.position = "bottom")
 
 
 

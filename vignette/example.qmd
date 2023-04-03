@@ -1,15 +1,19 @@
 ---
-title: "example"
+title: "Vignette for sequential Monte Carlo methods for data assimilation problems"
 author:
 - Kwaku Peprah Adjei$^{123}$
 - Robert B. O'Hara$^4$
 bibliography: references.bib
-format: pdf
+format: 
+  pdf:
+    number-sections: true
+    toc: true
 editor: visual
 output: 
   pdf_document:
     fig_crop: false
-    keep_tex: true
+    keep_tex: false
+    number-sections: true
 header-includes: 
   - \usepackage{mathtools}
   - \usepackage[left]{lineno}
@@ -26,201 +30,54 @@ indent: true
 
 # Introduction
 
-Ecological time series data are collected to explain spatio-temporal changes in species distribution. Species distribution models that explain the abundance or occupancy of the species need to be updated and the model parameters updated to reflect the current trends in the species. 
+Ecological time series data are collected to explain spatio-temporal changes in species distribution. Species distribution models that explain the abundance or occupancy of the species need to be updated and the model parameters updated to reflect the current trends in the species.
 
-In recent years, the state space models (SSMs) have become widely used in analyzing such data. These SSMs have been fitted in the Bayesian framework using the Markov chain Monte Carlo approach. This approach can be very computationally expensive and takes a relatively long time to fit. Fitting the SSMs with this approach can be infeasible in terms of computational load and time needed to run model which increases as the data gets larger in size.
+In recent years, the state space models (SSMs) have become widely used in analyzing such data. These SSMs have been fitted in the Bayesian framework using the Markov chain Monte Carlo approach. This approach can be very computationally expensive and takes a relatively long time to fit. Fitting the SSMs with this approach can be unfeasible in terms of computational load and time needed to run model which increases with data size.
 
-A faster approach to fitting the SSMs is using the sequential Monte Carlo (SMC) approach. The SMC uses sequential importance sampling (SIS) to obtain importance weights that are used to generate posterior distributions of latent states at every time step and also update the other parameters in the model (using the particle MCMC approach).
+A faster approach to fitting the SSMs is using the sequential Monte Carlo (SMC) approach. The SMC uses sequential importance sampling (SIS) to obtain importance weights that are used to generate posterior distributions of latent states at every time step and also update the other parameters in the model (using the particle MCMC approach; @andrieu2010particle). The SMC approaches have been implemented in packages such as `nimbleSMC` [@michaud2021sequential], and this package will be referred to in this document.
 
-This document seeks to demonstrate how once can use MCMC models already fitted to the SSMs and update them using the SMC approach. The bootstrap and auxiliary PFs were discussed in the main papar, but this document will focus on the boostrap particle filters. The reader is expected to be familiar with the nimbleSMC package and the various functions (the reader is referred to Chapter 8 of @nimblepackage and @michaud2021sequential  for details on how to fit SSMs using SMC approach in NIMBLE). The first part provides a brief introduction to the state space models (SSMs), sequential monte carlo (SMC) approaches (specifically the bootstrap particle filter) and the particle MCMC.
+This document seeks to demonstrate how once can use MCMC models already fitted to the SSMs and update them using the SMC approach. The bootstrap and auxiliary PFs were discussed in the main paper, but this document will focus on bootstrap particle filter. The reader is expected to be familiar with the `nimbleSMC` package and its functionalities (the reader is referred to Chapter 8 of @nimblepackage and @michaud2021sequential for details on how to fit SSMs using SMC approach in NIMBLE). The first part provides a brief introduction to the state space models (SSMs), sequential Monte Carlo (SMC) approaches (specifically the bootstrap particle filter) and the particle MCMC with the necessary changes made to accomodate the updating process when new streams of data are obtained. The next part shows how to fit the model to the simulated data used in Example 1 in the main paper.
 
- \begin{tikzpicture}
-    \draw[black,thick,latex-latex] (0,0) -- (15,0)
-    node[pos=0,label=above:\textcolor{red}{$t = 1$}]{}
-    node[pos=0.25,text=blue,label=below:\textcolor{black}{$ \underbrace{\begin{bmatrix}
-x_{1}^{(1)} & x_{2}^{(1)} & \ldots &x_{t_r}^{(2)} \\
-x_{1}^{(2)} & x_{2}^{(2)} & \ldots & x_{t_r}^{(2)} \\
-\vdots & \vdots & \ldots & \vdots \\
-x_{1}^{(n.iter)} & x_{2}^{(n.iter)} & \ldots & x_{t_r}^{(n.iter)}
-\end{bmatrix} 
-\begin{bmatrix}
-\mathbb{\theta}^{(1)} \\
-\mathbb{\theta}^{(2)}\\
-\vdots \\
-\mathbb{\theta}^{(n.iter)}
-\end{bmatrix}}_{\text{MCMC used for State Space models}}$}]{}
-node[pos=0.80,text=blue,label=below:\textcolor{blue}{
-$ \underbrace{\begin{bmatrix}
-x_{t_r +1 }^{(1)} &\ldots &x_{T}^{(2)} \\
-x_{t_r +1}^{(2)} & \ldots & x_{T}^{(2)} \\
-\vdots &  \ldots & \vdots \\
-x_{t_r +1}^{(n.iter)} & \ldots & x_{T}^{(n.iter)}
-\end{bmatrix}
-\begin{bmatrix}
-\mathbb{\theta}_{upd}^{(1)} \\
-\mathbb{\theta}_{upd}^{(2)}\\
-\vdots \\
-\mathbb{\theta}_{upd}^{(n.iter)}
-\end{bmatrix}}_{\text{SMC used to update latent states and parameters}}$}]{}
-    node[pos=0.75,text=blue,label=above:\textcolor{blue}{New observation: $y_{t_r +1}, \ldots, y_{T}$}]{}
-        node[pos=0.25,text=black,label=above:\textcolor{black}{Old observation: $y_{1}, \ldots, y_{t_r}$}]{}
-    node[pos=0.50,fill=black,text=black,label=above:\textcolor{red}{$t = t_r$}]{}
-    node[pos=1,fill=blue,text=blue,label=above:\textcolor{red}{$t = T$}]{};
-  \end{tikzpicture}
+# Examples
 
-# State space models
+In this document, we demonstrate the use of our proposed model framework by applying them to a simulated dataset. The data was simulated from the linear Gaussian state space model in Example 1 of our main paper. The various functions and changes made to the `nimbleSMC` package filtering algorithms and samplers are written in our package `nimMCMCSMCupdates`. The `nimMCMCSMCupdates` package can be installed from github as follows:
 
-We assume we can obtain a (multivariate) observed time series data denoted by $y_{1:T} = \{y_1, y_2, \ldots, y_T\}$ where $y_t$ is a ($k \times 1$) observed vector. These observations depend on latent (unobserved but in interest) states $x_{1:T} = \{x_1, x_2, \ldots, x_T\}$, where $x_t$ is an ($M \times 1$) state vector and $M$ is the number of particles at each time step $t$. These latent states are assumed to have a first order Markov structure (the latent state at time $t$ depends on latent state at time $t-1$ only) and the observations at each time $t$, $y_t$, given the latent state at that time $x_t$ are independent of previous observations and states.
-
-A summary of the information we have for the SSM framework is given below: \begin{equation}\label{SSM}
-\begin{split}
-\text{Intial state distribution} :& \quad p(x_0| \theta); \quad t = 0 \\
-\text{State model} :& \quad p(x_t| x_{t-1},\theta); \quad t = 1, 2, \ldots, T \\
-\text{Observation model} :& \quad p(y_t| x_{t},\theta); \quad t = 1, 2, \ldots, T \\
-\end{split}
-\end{equation} where $\theta$ are top-level parameters (assumed to be deterministic in equation \eqref{SSM}).
-
-Furthermore, we assume that we have already fitted a SSM, either with MCMC or SMC approaches, to the observed data from time $t = 1$ to $t = t_r$, where $t_r < T$. From the fitted SSM, the $M \times t_r$ latent state particles and weights at $t = t_r$ are stored, and used to update the posterior samples of the latent states $x_{t_r +1}, x_{t_r + 2}, \ldots, x_T$ and top -level parameters $\theta$ using SMC methods to be discussed below.
-
-
-## Sequential Monte Carlo (SMC) methods
-
-The SMC methods used sequential importance sampling (SIS) technique to estimate the filtering distributions [@doucet2001introduction, @michaud2021sequential]. At each time step $t$, the latent state $x_t$ is proposed from the previous state $x_{t-1}$ from a proposal distribution or importance function, $\pi(x_t|x_{t-1}, y_{1:t}, \theta)$, and posterior samples of $x_t$ are drawn from the proposed samples using importance weights $w_t$:
-
-```{=tex}
-\begin{equation}\label{importanceWeights1}
-w_t^{(i)} \propto \frac{p(x_t^{(i)}|x_{t-1}^{(i)}, y_{1:t},\theta)}{\pi(x_t^{(i)}|x_{t-1}^{(i)}, y_{1:t},\theta)}
-\end{equation}
+```{r, eval = FALSE}
+devtools::install_github("Peprah94/nimMCMCSMCupdates")
 ```
-and iteratively as:
 
-```{=tex}
-\begin{equation}\label{importanceWeights2}
-w_t^{(i)} \propto w_{t-1}^{(i)} \frac{p(x_t^{(i)}|x_{t-1}^{(i)}\theta) p(y_{1:t}|x_t^{(i)})}{\pi(x_t^{(i)}|x_{t-1}^{(i)}, y_{1:t},\theta)}
-\end{equation}
-```
-for $i = 1, 2, \ldots, M$ particles.
+# Set-up
 
-The importance function chosen for SIS is critical to the performance of the SMC method [@arulampalam2002tutorial, @doucet2001introduction, @michaud2021sequential], the prior distribution of the latent states are chosen as the importance function. In this case, the importance weights in equation \eqref{importanceWeights2} simplifies to:
+Simulating data and loading packages
 
-```{=tex}
-\begin{equation}\label{importanceWeights3}
-w_t^{(i)} \propto w_{t-1}^{(i)} p(y_t|x_{t}^{(i)}, \theta);
-\end{equation}
-```
-for $i = 1, 2, \ldots, M$ particles. See @doucet2001introduction for the details of the simplification.
+## Load packages
 
-This suggests that from time steps $t = t_{r+1}$ to $t = T$ (where we are have new data), we only need information about the weights at $t= t_r$ and the SSM distributions in equation \eqref{SSM} (which are assumed to be known), we can use any of the SMC algorithms to be briefly discussed below to estimating posterior distribution of latent states and update the top - level parameters. The saved posterior samples of latent state for time steps $t = 1, 2, \ldots, t_r$ are assumed to be equally weighted samples (i.e. they have equal weights and we choose $w_t^{(i)} = 1, \forall i$). In summary, our proposed framework uses the following information for generating the posterior samples of the latent states:
-
-\begin{equation}\label{weights} 
-\left\{
-\begin{array}{lll}
-      w_t^{(i)} = 1 & x_{t}^{(i)} \text{ from RM } & \text{for } 1\leq  t\leq t_r \\
-      w_t^{(i)} \text{ defined by equations } \eqref{importanceWeights1} - \eqref{importanceWeights3} & x_{t}^{(i)} \text{ from SMC }& \text{for } t_{r+1}\leq  t\leq T\\
-\end{array} 
-\right. 
-\end{equation} where RM denotes a reduced SSM fitted to the observed data $y_{1:t_r}$ using either MCMC or any SMC method to be discussed later.
-
-### Bootstrap particle filter
-
-The bootstrap particle filter (hereafter, BPF) re-samples with replacement the $M$ particles ($x_{0:t}^{(i)}; i = 1, 2,\ldots, M$) from the set of proposed samples ($\tilde{x}_{0:t}^{(i)}; i = 1, 2,\ldots, M$) according the importance weights ($w_t^{(i)}; i = 1, 2,\ldots, M$) defined in equations \eqref{importanceWeights1} to \eqref{importanceWeights3}. This re-sampling approach mitigates the particle degeneracy problem, where unimportant particles are propagated through time [@arulampalam2002tutorial, @doucet2001introduction].
-
-To implement the changes proposed in this paper; the following changes were made to the bootstrap PF algorithm implemented in nimble SMC:
-
-\begin{algorithm}
-\caption{Bootstrap filter with constant top-level nodes $\theta$}\label{alg:bootstrap PF}
-\begin{algorithmic}
-\For{$t$ in $1:t_{r}$ and $i$ in $1:n.iter$ } 
-    \For{$m$ in $1:M$}
-  \State Set $w_t^{(m)} := 1$; $x_t^{(m)} := x_t^{(i)}$
-  \EndFor
-\EndFor
-
-\For{$t$ in $t_{r+1}:T$} 
-    \For{$m$ in $1:M$}
-  \State Generate $\Tilde{x}_{t}^{(m)} \sim q(x_{t}| x_{t-1}^{(m), y_{t}})$\\
-  \State Calculate unnormalised weight $w_t^{(m)} = \frac{f(\Tilde{x}_t^{(m)}| x_{t-1}^{(m)})g(y_t | \Tilde{x}_t^{(m)})}{q(x_{t}| x_{t-1}^{(m), y_{t}})} \pi_{t-1}^{(m)}$
-  \EndFor
-    \For{$m$ in $1:M$}
-  \State Normalize $w_t^{(m)}$ as $\pi_t^{(m)} := \frac{w_t^{(m)}}{\sum_{i = 1}^M w_t^{(m)}}$
-  \EndFor
-      \For{$m$ in $1:M$}
-  \State Sample an index $j$ from the set of $i, \ldots, M$ with probabilities $\{ \pi_t^{(m)} \}_{m = 1}^{M}$
-  \State Set $x_t^{(m)} = \Tilde{x}_t^{(m)}$
-  \State $\pi_t^{(m)} = \frac{1}{M}$
-  \EndFor
-  \State Calculate $\Tilde{p}(y_{t|1:t-1}) = \frac{1}{M} \sum_{m = 1}^M w_t^{(m)}$
-\EndFor
-\end{algorithmic}
-\end{algorithm}
-
-
-### Particle Markov Chain Monte Carlo
-
-For all the SMC methods discussed so far, we have assumed that the parameters $\theta$ are deterministic. In most ecological applications, these parameters are stochastic. For example, these parameters can be effects we may be interested in making inferences about. Using the Bayesian framework, the joint likelihood of the latent states and parameters is $p(\theta, x_{1:t}| y_{1:t}) = p_{\theta}(x_{1:t}|y_{1:t}) p(\theta);$ where $p(\theta)$ is the prior distribution for the top-level parameters $\theta$.
-
-The particle MCMC [@andrieu2010particle] makes it possible to jointly sample from the posterior distribution of the states and the top-level parameters $\theta$. This algorithm first proposes a value for the top-level parameter ($\theta^{\star}$) from a proposal distribution fits a SMC method described above with the proposed value $\theta^{\star}$. This proposed value is accepted or rejected based on a Metropolis Hasting acceptance ratio (MHAR) defined as:
-
-\begin{equation}\label{MHAR}
-\begin{split}
-MHAR & = \frac{p_{\theta}(y_{1:t}) p(\theta^{\star})\pi(\theta|\theta^{\star})}{p_{\theta^{\star}}(y_{1:t}) p(\theta)\pi(\theta^{\star}|\theta)};\\
- \text{where} \quad p_{\theta}(y_{1:t}) & = p_{\theta}(y_{1})\prod_{t=2}^{T}p_{\theta}(y_{n}| y_{n-1}) \\
-  & = p_{\theta}(y_{1})\prod_{t=2}^{T}\sum_{i = 1}^{M} w_{t|\theta}^{i}\\
-\end{split}
-\end{equation} where $p_{\theta}(y_{1:t})$ is the marginal distribution of the observed data given the parameter $\theta$, $w_{t|\theta}^{i}$ is the $i^{th}$ importance weight at time $t$ given the value of $\theta$, $p(\theta^{\star})$ and $p(\theta)$ is the prior distribution of $\theta^{\star}$ and $\theta$ respectively and $\pi(.|.)$ is the proposal distribution for the parameters $\theta$.
-
-Adapting the MHAR defined in equation \eqref{MHAR} and weights in equation \eqref{weights} for our proposed framework, the proposed parameter value ($\theta^{\star}$) is now accepted or rejected with MHAR:
-
-\begin{equation}\label{MHARupd}
-MHAR_{upd} = \frac{p(\theta^{\star})\pi(\theta|\theta^{\star})\prod_{t=t_r +1}^{T}\sum_{i = 1}^{M} w_{t|\theta^{\star}}^{i}}{p(\theta)\pi(\theta^{\star}|\theta)\prod_{t=t_r+1}^{T}\sum_{i = 1}^{M} w_{t|\theta}^{i}};
-\end{equation} where $w_{t|\theta}^{i}$ is the $i^{th}$ importance weight at time $t$ given the value of $\theta$, $p(\theta^{\star})$ and $p(\theta)$ is the prior distribution of $\theta^{\star}$ and $\theta$ respectively and $\pi(.|.)$ is the proposal distribution for the parameters $\theta$. See Supplementary Information 1 for details of the MHAR defined by equations \eqref{MHAR} and \eqref{MHARupd}.
-
-\begin{algorithm}
-\caption{Particle MCMC using the proposed updated model}\label{alg:pMCMC}
-\begin{algorithmic}
-\For{$i$ in $1:n.iter$} 
-  \State Generate $\theta^{\star} \sim q(\theta | \theta_{r}^{(i)})$
-  \State Run a particle filter with algorithm one to estimate the marginal likelihood $\Tilde{p}(y_{1:T}|\theta^{\star})$
-  \State At the last time step $T$, draw $x^{\star}_{1:T} \sim p(x_{1:T}| y_{1:T}, \theta^{\star})$ from the full particle filter history
-  \State Compute the Metropolis Hasting acceptance ratio in an equation \ref{MHARupd} and choose $a^{\star} = min(1, MHARupd)$
-  \State Generate $r \sim unif(0,1)$
-\If{$a^{\star} > r$} 
-    \State Set $\theta^{(i)} := \theta^{\star}$, $x^{(i)}_{1:T} = x^{\star}_{1:T| \theta^{\star}}$
-\Else
-    \State Set $\theta^{(i)} := \theta^{(i)}_{r}$, $x^{(i)}_{1:T} = x_{ \{1:T \} | {\theta_r^{(i)}}}$
-\EndIf 
-\EndFor
-\end{algorithmic}
-\end{algorithm}
-
-# Packages needed
+The following packages are to be loaded for this document to run.
 
 ```{r, warning=FALSE, message=FALSE}
-#devtools::install_github("Peprah94/nimMCMCSMCupdates")
 library(nimMCMCSMCupdates)
 library(nimble)
 library(nimbleSMC)
-
-set.seed(1)
+library(dplyr)
+library(ggplot2)
+library(ggmcmc)
+library(kableExtra)
+library(rjags)
+library(coda)
 ```
 
+## Simulating data
 
-# Simulating data
+We simulate data from the linear Gaussian state space model for $t = 50$ years.
+
 ```{r}
-# Setting up MCMC configuration values and variation of parameters
-nIterations = 1000
-nBurnin = 200
-nChains = 3
-nThin = 1
-nyears = 50
-aVars <- c(0.1, 0.8) # changing the intercept
-#High and small values of a
-iNodePrev <- c(49, 45, 20) # The number of years for reduced model
-aVarstag = 2
-iNodetag = 2
-mcmcRun <- FALSE #use mcmc or nimbleSMC for reduced Model
-pfTypeRun = "auxiliary"
+#seed seed for reproduceable results
+set.seed(1)
 
+nyears = 50 #Number of years 
+iNodePrev <- 45 # The number of years for reduced model
+
+# function to simulate the data
 sim2 <- function(a, b, c, t, mu0){
   x <- y <- numeric(t)
   x[1] <- rnorm(1, mu0, 1 )
@@ -228,26 +85,103 @@ sim2 <- function(a, b, c, t, mu0){
   
   for(k in 2:t){
     x[k] <- rnorm(1, a*x[k -1] + b, 1)
-    y[k] <- rnorm(1, x[k-1]*c, 1)# + (sigOE * (sqrt(df -2)/df) * rt(1, df))
+    y[k] <- rnorm(1, x[k-1]*c, 1)
   }
   return(list(x=x, y=y))
 }
 
-message("simulating data for a = ", aVars[aVarstag])
-simData <- sim2(a = aVars[aVarstag],
+# simulating the data
+simData <- sim2(a = 0.8,
                 b = 1,
                 c = 1.5,
                 t = nyears,
                 mu0 = 0.2)
-
+# Taking a look at the data
 str(simData)
 ```
 
+# Fitting reduced SSM
 
-# Define the NIMBLE model
+This tutorial will assumes that the reduced model is fitted to the observations $y$ from time $t = 1$ to $t = 45$. The reduced SSM is fitted with MCMC using JAGS **\[cite\]** and NIMBLE **\[cite\]** and with particle MCMC using **\[cite\]**. In this section, we show how the linear Gaussian state space model is fitted using the these three approaches and the results we need for the updating process. Specifically, we aim at saving the posterior samples of the latent states $x$ and top-level parameters $a$, $b$, $c$ and $\mu_0$.
+
+We proceed by first defining some common parameters that will be used throughout the process of fitting the reduced SSM. These parameters are the number of MCMC iterations, number of chains, thinning value and the parameters to monitor. For each MCMC or SMC approach to be used in fitting the reduced model, we run the MCMC for $1000$ iterations, and use the first $500$ samples as burn-in samples with thinning value of $1$.
 
 ```{r, warning=FALSE, message=FALSE}
-stateSpaceCode <- nimbleCode({
+nIterations = 10000
+nChains = 3
+nBurnin = 5000
+nParFiltRun = 1000
+parametersToMonitor <- c("a", "b", "c", "mu0", "x")
+```
+
+## Fitting reduced model with JAGS
+
+We proceed to fit the reduced model with JAGS assuming the reader is familiar with the BUGS language and possible running MCMC with JAGS (Refer to **citation** for tutorials on how to fit the model with JAGS).
+
+*Define and set-up JAGS model*
+
+To fit the reduced model with JAGS, we first define our JAGS model using the BUGS syntax. We do this by embedding the BUGS model in R.
+
+```{r, warning=FALSE, message=FALSE}
+# defining JAGS model in R
+cat("model{
+  x[1] ~ dnorm(mu0, 1)
+  y[1] ~ dnorm(x[1], 1)
+  for(i in 2:t){
+    x[i] ~ dnorm(x[i-1] * a + b, 1)
+    y[i] ~ dnorm(x[i] * c, 1)
+  }
+  a ~ dunif(0, 1)
+  b ~ dnorm(0, 1)
+  c ~ dnorm(1,1)
+  mu0 ~ dnorm(0, 1)
+}", file="lgssm.txt"
+)
+
+#setting the parameters needed to run the MCMC
+data <- list(
+  y = simData$y[-c((iNodePrev+1):50)],
+  t = iNodePrev
+)
+
+# Initial values
+inits <- list(
+  a = 0.1,
+  b = 0,
+  mu0= 0.2,
+  c = 1
+)
+```
+
+We then set up the syntax defined above to run in JAGS. We are going to run the model for $3$ chains, with no number of adaptations.
+
+```{r, warning=FALSE, message=FALSE}
+jagsModel <- jags.model(file = "lgssm.txt",
+                        data = data,
+                        inits = inits,
+                        n.chains = nChains)
+```
+
+*Run the JAGS model and saving posterior samples*
+
+The JAGS model is run and the posterior samples are saved. We run $1000$ iterations and use the first $500$ samples as burn-in samples.
+
+```{r, warning=FALSE, message=FALSE, eval = FALSE}
+## run JAGS and save posterior samples
+samps <- coda.samples( jagsModel , parametersToMonitor, n.iter= nIterations)
+jagsReducedSamples <- window(samps, start=nBurnin+1)
+```
+
+## Fitting reduced model with NIMBLE
+
+We also assume that the user is familiar with the NIMBLE package **\[cite\]** and how to fit models with it (See **\[cite\]** for details on how to rum MCMC with NIMBLE package **\[cite\]**).
+
+*Defining the NIMBLE model*
+
+We first define our nimble model. This process involves writing the BUGS code, defining the data, constant and initial values components of the the nimbleModel function in `nimble` package. \textbf{What does the nimbleModel function do?}
+
+```{r, warning=FALSE, message=FALSE}
+lgSSMCode <- nimbleCode({
   x[1] ~ dnorm(mu0, 1)
   y[1] ~ dnorm(x[1], 1)
   for(i in 2:t){
@@ -259,34 +193,493 @@ stateSpaceCode <- nimbleCode({
   c ~ dnorm(1,1)
   mu0 ~ dnorm(0, 1)
 })
-#
-# ## define data, constants, and initial values
+
 data <- list(
-  #   #y = c(0.213, 1.025, 0.314, 0.521, 0.895, 1.74, 0.078, 0.474, 0.656, 0.802)
-  y = simData$y
+  y = simData$y[-c((iNodePrev+1):50)]
 )
+# Defining constants
 constants <- list(
-  t = nyears
+  t = iNodePrev
 )
+# Initial values
 inits <- list(
   a = 0.1,
   b = 0,
   mu0= 0.2,
   c = 1
 )
-#
-#
-# ## build the model
-stateSpaceModel <- nimbleModel(stateSpaceCode,
+# Define the nimbleModel with the various components defined
+lgSSModel <- nimbleModel(lgSSMCode,
                                data = data,
                                constants = constants,
                                inits = inits,
                                check = FALSE)
 ```
 
-# Run baseline model
+*Configure, build, compile and run model* We configure the MCMC by adding the parameters to monitor, build and compile the configured model. The compiled model is then run and the posterior samples are saved.
+
+```{r, warning=FALSE, messages= FALSE, eval = FALSE}
+#Compile model
+    nMCompile <- compileNimble(lgSSModel)
+    
+# configure model
+    cMCMC <- configureMCMC(lgSSModel, monitors = parametersToMonitor)
+    
+    #build model
+    bMCMC <- buildMCMC(cMCMC)
+    
+  # Compile the model to run in c++
+    coMCMC <- compileNimble(bMCMC, project = nMCompile)
+
+    #runMCMC
+    mcmc.out <- runMCMC(coMCMC,
+                            niter = nIterations,
+                            nchains = nChains,
+                            nburnin = nBurnin,
+                            setSeed = TRUE,
+                            samples=TRUE,
+                            samplesAsCodaMCMC = TRUE,
+                            summary = TRUE,
+                            WAIC = FALSE)
+    
+    #save posterior samples
+nimbleReducedSamples <- mcmc.out$samples
+```
+
+## Fitting reduced SSM using pMCMC
+
+Lastly, we fit the reduced SSM with particle MCMC **cite** using the `nimbleSMC` **\[cite\]** package. Similar to the assumptions made for the first two MCMC models fit, we assume that the user is familiar with the `nimbleSMC` package **\[cite\]** and how to fit models with it (See **\[cite\]** for details on how to run pMCMC with `nimbleSMC` package **\[cite\]**).
+
+*Defining nimble Model* As with the example in the preceeding subsection, we define our nimble model. We use the same nimble model(`lgSSModel`) used in that section, but we need to replicate it since it has been compiled for the MCMC run above.
+
+```{r, message=FALSE, warning = FALSE}
+lgSMCmodel <- lgSSModel$newModel(replicate = TRUE)
+#compile nimble model
+clgSMCmodel <- compileNimble(lgSMCmodel)
+```
+
+*configure model and Build Particle filter*
+
+After defining our nimble model, we first build a particle to be passed on to the MCMC part of the pMCMC. In this example, we build a bootstrap particle filter.
+
+```{r, message=FALSE, warning=FALSE}
+mcmcConf <- configureMCMC(lgSMCmodel, 
+                          nodes = NULL,
+                          monitors = parametersToMonitor)
+
+particleFilter <- nimbleSMC::buildBootstrapFilter(lgSMCmodel,
+                      nodes = "x", #latent state
+                      control = list(saveAll = TRUE, #save weights and latent states for each time step
+                                    smoothing = FALSE,
+                                    initModel = FALSE))
+
+#compile particle filter
+#compileNimble(lgSMCmodel,  particleFilter)
+```
+
+*Build MCMC part of the pMCMC*
+
+We then use the particle filter defined above to configure our MCMC. The configured model is built, compiled and run to obtain the posterior samples. The posterior samples are saved to be used for the updating process.
+
+```{r, message=FALSE, warning=FALSE, eval = FALSE}
+#add sampler for pMCMC
+mcmcConf$addSampler(target = c("a", "b", "c", "mu0"),
+                    type = "RW_PF_block",
+                    pf = particleFilter,
+                    adaptive = FALSE,
+                    pfNparticles = 1000,
+                    latents = "x")
+
+#mcmcConf$addMonitors("x")
+#building MCMC
+bMCMCsmc <- buildMCMC(mcmcConf)
+
+# compile MCMC
+cMCMCsmc <- compileNimble(bMCMCsmc,
+                          project = lgSMCmodel,
+                          resetFunctions = TRUE)
+
+#runMCMC
+smcMCMCout <- runMCMC(cMCMCsmc,
+                      niter = nIterations,
+                      nchains = nChains,
+                      nburnin = nBurnin,
+                      inits = inits, 
+                      setSeed = TRUE,
+                      samples=TRUE,
+                      samplesAsCodaMCMC = TRUE,
+                      summary = TRUE,
+                      WAIC = FALSE)
+    
+    #save posterior samples
+nimblesmcReducedSamples <- smcMCMCout$samples
+```
+
+## Saving all samples
+
+We save all the results from the three fitted reduced SSMs in a list to use in the updating process
 
 ```{r, eval = FALSE}
+mcmcSamplesList <- list(jagsReducedSamples = jagsReducedSamples,
+                        nimbleReducedSamples = nimbleReducedSamples,
+                        nimblesmcReducedSamples= nimblesmcReducedSamples)
+save(mcmcSamplesList, 
+     file = "mcmcSample.RData")
+```
+
+# Converting MCMC output for updating process
+
+We load the save posterior samples for the updating process. It is worth noting that all the samples are `mcmc.list` class, so the procedure we use to prepare the posterior samples from any of these three models can be generalised to any MCMC approach of this class.
+
+```{r}
+#load saved that
+load("mcmcSample.RData")
+
+#Check the class of each of the returned posterior samples
+lapply(mcmcSamplesList, function(x) class(x))
+```
+
+**Creating model values from saved posterior samples**
+
+The posterior samples need to be stored in as ModelValues to be used for updating the SSM (see Chapter 15 of **\[cite nimble manual\]** for details on modelValues defnition). To do this, we need to re-define our model is we used JAGS as a nimble model, or use our reduced model from the MCMC with `nimble` and pMCMC with `nimbleMCMC`. In this example, we re-define the JAGS model as a nimble model. We do this by copying the text file into a nimbleCode and then we can define the nimbleModel as we did for the two examples.
+
+```{r, warning=FALSE, message=FALSE}
+jagsToNimbleCode <- nimbleCode({
+  x[1] ~ dnorm(mu0, 1)
+  y[1] ~ dnorm(x[1], 1)
+  for(i in 2:t){
+    x[i] ~ dnorm(x[i-1] * a + b, 1)
+    y[i] ~ dnorm(x[i] * c, 1)
+  }
+  a ~ dunif(0, 1)
+  b ~ dnorm(0, 1)
+  c ~ dnorm(1,1)
+  mu0 ~ dnorm(0, 1)
+})
+
+data <- list(
+  y = simData$y[-c((iNodePrev+1):50)]
+)
+# Defining constants
+constants <- list(
+  t = iNodePrev
+)
+# Initial values
+inits <- list(
+  a = 0.1,
+  b = 0,
+  mu0= 0.2,
+  c = 1
+)
+# Define the nimbleModel with the various components defined
+jagsToNimbleModel <- nimbleModel(jagsToNimbleCode,
+                               data = data,
+                               constants = constants,
+                               inits = inits,
+                               check = FALSE)
+```
+
+After defining the nimble model, we can create the modelValues object. The modelValue object is created for each MCMC chain. In this example, we show how to do it for the first chain.
+
+```{r}
+# Define latent states and top-level parameters
+latent = "x"
+target = c("a", "b", "c", "mu0")
+
+# Expand the node names for the latent variables
+latentNodes <- jagsToNimbleModel$expandNodeNames(latent)
+
+# Find all the latent nodes
+# Function in nimbleSMC
+nodes <- findLatentNodes(jagsToNimbleModel, 
+                         latent, 
+                         timeIndex = 1)
+
+#find the dimension of the nodes
+dims <- lapply(nodes, function(n) nimDim(jagsToNimbleModel[[n]]))
+if(length(unique(dims)) > 1)
+  stop('sizes or dimensions of latent states varies')
+
+# create a vars vector that contains the names of the latent nodes and top-level parameters
+vars <- c(jagsToNimbleModel$getVarNames(nodes =  nodes), target)
+
+#create a list of model objects to store the variable values
+modelSymbolObjects <- jagsToNimbleModel$getSymbolTable()$getSymbolObjects()[vars]
+
+# retrun the names, type ans size components for the modelValues.
+# These are the essential components needed to create modelValues
+names <- sapply(modelSymbolObjects, function(x)return(x$name))
+type <- sapply(modelSymbolObjects, function(x)return(x$type))
+size <- lapply(modelSymbolObjects, function(x){
+  y <- x$size
+  #Make sure variables with nDim= 0 will have size of 1
+  t <- length(y)
+  rr <- c()
+  if(t > 1){
+rr <- y
+  }else{
+    if(length(y)>0){
+   rr <- y
+    }else{
+ rr <- 1}
+  }
+  return(rr)
+  }
+)
+
+#create ModelValues object
+mvSamplesEst <- modelValues(modelValuesConf(vars = names,
+                                            types = type,
+                                            sizes = size))
+
+#let's check the mvSamplesEst
+print(mvSamplesEst)
+
+# The modelValue object created has size of 1. 
+mvSamplesEst$getSize()
+
+# resize the modelValues object created to be equal to (number of iterations - burnin samples)/n.thin
+mcmcSampleSize = (nIterations - nBurnin)
+resize(mvSamplesEst, mcmcSampleSize)
+
+# check size now
+mvSamplesEst$getSize()
+
+# retrieve posterior samples for the first chain
+mcmcOut <- mcmcSamplesList$jagsReducedSamples[[1]]
+
+#create mvEst for the first chain
+for(iter in 1:mcmcSampleSize ){
+  for(j in 1:length(names)){
+    if(names[j] == latent & length(size[[1]]) > 1){
+    mvSamplesEst[[names[j]]][[iter]] <- matrix(mcmcOut[iter, jagsToNimbleModel$expandNodeNames(names[j])], nrow = size[[1]][1], ncol = size[[1]][2])
+    }else{
+      mvSamplesEst[[names[j]]][[iter]] <-  mcmcOut[iter, jagsToNimbleModel$expandNodeNames(names[j])]
+    }
+  }
+}
+```
+
+This process of converting MCMC posterior samples to modelValues that cam be used by `nimbleSMC` is written in **updateUtils** function in our `nimbleMCMCSMC` package. It takes as input the reduced model, the MCMC samples, latent state, target vectors, the MCMC sample size, the timeIndes for the **findLatentNodes** function. The code delow show produce the same results as above.
+
+```{r, eval = FALSE}
+    updateVars <- updateUtils(model = jagsToNimbleModel, 
+                mcmcOut = mcmcSamplesList$jagsReducedSamples[[1]],
+                          latent = latent,
+              target = target,
+              n.iter = mcmcSampleSize ,
+              m = nParFiltRun,
+              timeIndex = 1)
+```
+
+# Updating process using nimbleSMC
+
+After saving posterior samples as modelValues, we then proceed to fit the updated SSM. We modified the bootstrap and auxiliary particle filter algorithms as well as the MCMC samplers in the `nimbleSMC` package. We use the modified functions, which can be found in our `nimbleMCMCSMC` package, to illustrate the updating process. Note that the entire process defined here has to repeated for number of chains times.
+
+**Re-defining the nimbleModel**
+
+The reduced SSM needs to be updated with the observation from time $t= 46$ to $t=50$. To do this, we change the data and constant components of our reduced model and create a new nimble model.
+
+```{r, message=FALSE, warning=FALSE}
+data <- list(
+  y = simData$y
+)
+# Defining constants
+constants <- list(
+  t = nyears
+)
+# Initial values
+inits <- list(
+  a = 0.1,
+  b = 0,
+  mu0= 0.2,
+  c = 1
+)
+# Define the nimbleModel with the various components defined
+lgSSMUpdated <- nimbleModel(lgSSMCode,
+                               data = data,
+                               constants = constants,
+                               inits = inits,
+                               check = FALSE)
+```
+
+**Build updated particle filter and set up MCMC configuration**
+
+```{r, warning=FALSE, message=FALSE}
+  modelMCMCconf <- nimble::configureMCMC(lgSSMUpdated, 
+                                         nodes = NULL, 
+                                         monitors = parametersToMonitor)
+
+# Define control element
+  pfControl = list(saveAll = TRUE, 
+                   smoothing = FALSE,
+                   M = nyears - iNodePrev,
+                   iNodePrev = iNodePrev)
+
+# Build particle filter
+particleFilter <- nimMCMCSMCupdates::buildBootstrapFilterUpdate(model = lgSSMUpdated ,
+nodes = latent,
+mvSamplesEst = mvSamplesEst,
+target = target, 
+control = pfControl)
+```
+
+**Build, compile and run MCMC**
+
+```{r, eval = FALSE, warning=FALSE, message=FALSE}
+pfTypeUpdate = 'bootstrapUpdate'
+
+#Add RW_blockUpdate sampler
+  modelMCMCconf$addSampler(target = target,
+                           type = 'RW_PF_blockUpdate',
+                           control = list(latents = latent,
+                                          target = target,
+                                          adaptInterval = mcmcSampleSize,
+                                          pfControl = list(saveAll = TRUE, 
+                                                           M = nyears - iNodePrev, 
+                                                           iNodePrev = iNodePrev),
+                                          pfNparticles = nParFiltRun,
+                                          pfType = pfTypeUpdate,
+                                          mvSamplesEst = mvSamplesEst,
+                                          logLikeVals = NA))
+
+  #Check if we are getting the varaiables we want to monitor
+  modelMCMCconf$printMonitors()
+  
+  #build MCMC
+    modelMCMC <- buildMCMC(modelMCMCconf)
+    
+    #compile MCMC
+  compiledList <- nimble::compileNimble(lgSSMUpdated,
+                                        modelMCMC,
+                                        resetFunctions = TRUE)
+  
+  #run MCMC
+  mcmc.out <- nimble::runMCMC(compiledList$modelMCMC,
+                              niter = mcmcSampleSize,
+                              nchains = 1,
+                              nburnin = 0,
+                              setSeed = TRUE,
+                              samples=TRUE,
+                              samplesAsCodaMCMC = TRUE,
+                              summary = TRUE,
+                              WAIC = FALSE)
+  
+  #check the output
+  head(mcmc.out$summary)
+```
+
+The entire process described above is written up in the **spartaNimUpdates** function in our `nimMCMCSMCupdates` package. We use this function to run the updated model for all the three chains.
+
+```{r, message=FALSE, warning=FALSE, eval=FALSE}
+# Replicate the updated and reduced models
+newModelReduced <- jagsToNimbleModel$newModel(replicate = TRUE)
+newModelUpdated <- lgSSMUpdated$newModel(replicate = TRUE)
+
+#reduced model list 
+mcmcList <- list()
+mcmcList$samples <- mcmcSamplesList$jagsReducedSamples
+mcmcList$summary <- NULL
+
+lgSSMUpdatedResults <- nimMCMCSMCupdates::spartaNimUpdates(
+  model = newModelUpdated, #nimble model
+  reducedModel = newModelReduced, # reduced nimbleModel 
+  latent = "x", #latent variable
+  pfType = "bootstrap", # type of SMC
+  MCMCconfiguration = list(target = c('a', 'b', 'c', 'mu0'), #top-level parameters
+                           additionalPars = "x", #additional parameters to monitor
+                           n.iter = mcmcSampleSize, #number of iterations
+                           n.chains = nChains, # number of chains
+                           n.burnin = 0, # number of burnin samples
+                           n.thin = 1),  # number of thinning samples
+  postReducedMCMC = mcmcList,# MCMC posterior samples from reduced SSM
+  pfControl = list(saveAll = TRUE, 
+                   smoothing = FALSE,
+                   M = nyears - iNodePrev,
+                   iNodePrev = iNodePrev)
+)
+
+save(lgSSMUpdatedResults, file = "lgSSMUpdatedResults.RData")
+```
+
+The **spartaNimUpdates** function returns the posterior samples, summary of the posterior samples and the timeRun
+
+```{r}
+data("lgssmUpdated") # load results
+#str(example1UpdatedModel)
+```
+
+## Comparing the various models fit
+
+Our package provides functions to compare the reduced and updated SSM fitted in this document.
+
+### Comparing individual model parameters
+
+The *compareModelsIndividualPars* function compares a list of SSM models fit with our package. It returns the efficiency, effective sample size (ESS), time run, and Monte Carlo standard error of the individual models provided in the function. We present the efficiency of the reduced and updated SSM fitted in this document in Table \ref{tableEfficiency}
+
+```{r, eval = FALSE}
+#| label: tableEfficiency
+#| tbl-cap: Efficiency of the top-level parameters from the reduced and updated SSM fits in this example.
+#| warning: false
+#| message: false
+
+target = c('a', 'b', 'c', 'mu0')
+models <- list(example1ReducedModel,
+               example1UpdatedModel)
+results <- compareModelsIndividualPars(models = models,
+                                         n.chains = 2,
+                                        nodes = target,
+                                       modelNames = c("reducedModel", "updatedModel")) 
+
+# Return efficiency
+results$efficiency%>%
+  do.call("rbind", .)%>%
+  mutate(model = c(rep("reduced Model", length(target)), 
+                   rep("updated Model", length(target))))%>%
+    kbl() %>%
+ kable_material(c("striped", "hover"))
+```
+
+### Comparison plots for selected parameters
+
+The *compareModelsPlots* function also compares a list of SSM models fit with our package. It returns a plot of the efficiency, effective sample size (ESS), time run, and Monte Carlo standard error of the individual models provided in the function. We present the plot of the efficiency of the reduced and updated SSM fitted in this document as shown in Figure \ref{figEfficiency}.
+
+```{r, eval = FALSE}
+#| label: figEfficiency
+#| fig-cap: Efficiency of the top-level parameters from the reduced and updated SSM fits in this example.
+#| warning: false
+#| message: false
+#| 
+ret <- compareModelsPlots(models = models, 
+                          modelNames = c("reduced model", "updated Model"),
+                   n.chains = 2,
+                   nodes = target)
+# return efficiency 
+ret$efficiencyPlot
+```
+
+### Posterior summaries for models
+
+We also provide a function that returns the posterior mean of parameters of interest and the credible intervals around the estimates.
+
+```{r, eval = FALSE}
+#| label: figConfint
+#| fig-cap: Posterior mean and 95% credible interval of the top-level parameters from the reduced and updated SSM fits in this example.
+#| warning: false
+#| message: false
+
+ret <- compareModelsMeanPlots(models = models, 
+                          modelNames = c("reduced model", "updated Model"),
+                          fullModel = stateSpaceModel,
+                          nodes = target)
+
+#return confint plot
+ret$confintPlot
+```
+
+### Run baseline model
+
+```{r, include = FALSE, eval = FALSE}
 newModel <- stateSpaceModel$newModel(replicate = TRUE)
 
 # Function to run the baseline model
@@ -300,67 +693,6 @@ newModel <- stateSpaceModel$newModel(replicate = TRUE)
                             n.burnin = nBurnin,
                             n.thin = nThin))
 ```
-
-
-# Reduced model
-
-Either with
-
-  + MCMC
-  + SMC
-  
-```{r, eval = FALSE}
-data <- list(
-  y = simData$y[-c((iNodePrev+1):50)]
-)
-constants <- list(
-  t = iNodePrev
-)
-newModelReduced <- nimbleModel(stateSpaceCode,
-                               data = data,
-                               constants = constants,
-                               inits = inits,
-                               check = FALSE)
-
-example1ReducedModel <- spartaNimWeights(
-  model = newModelReduced, 
-  latent = "x", 
-  mcmc = mcmcRun,
-  pfType = pfTypeRun,
-  MCMCconfiguration = list(target = c('a', 'b', 'c', 'mu0'),
-                           additionalPars = "x",
-                           n.iter = nIterations,
-                           n.chains = nChains,
-                           n.burnin = nBurnin,
-                           n.thin = nThin)
-)
-```
-
-
-# Updated model
-
-```{r, eval = FALSE}
-example1UpdatedModel <- spartaNimUpdates(
-  model = stateSpaceModel, #nimble model
-  reducedModel = newModelReduced,
-  latent = "x", #latent variable
-  pfType = pfTypeRun,
-  MCMCconfiguration = list(target = c('a', 'b', 'c', 'mu0'),
-                           additionalPars = "x",
-                           n.iter = (nIterations - nBurnin)/nThin,
-                           n.chains = nChains,
-                           n.burnin = 0,
-                           n.thin = 1),  #saved loglikelihoods from reduced model
-  postReducedMCMC = example1ReducedModel,# MCMC summary to use as initial values
-  pfControl = list(saveAll = TRUE,
-                   lookahead = "mean",
-                   smoothing = FALSE,
-                   mcmc = mcmcRun,
-                   M = nyears - iNodePrev,
-                   iNodePrev = iNodePrev)
-)
-```
-
 
 # References
 

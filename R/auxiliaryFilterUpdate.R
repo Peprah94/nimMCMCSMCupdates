@@ -1,13 +1,3 @@
-# auxStepVirtual1Update <- nimbleFunctionVirtual(
-#   run = function(m = integer(),iterRun = integer(),storeModelValues = double(1)) {
-#     returnType(double())
-#   },
-#   methods = list(
-#     returnESS = function() {
-#       returnType(double())
-#     }
-#   )
-# )
 
 ##  Contains code to run auxiliary particle filters.
 ##  We have a build function (buildAuxiliaryFilter),
@@ -63,10 +53,7 @@ auxFStepUpdate <- nimbleFunction(
   setup = function(model, mvEWSamples, mvWSamples, nodes, iNode, names,
                    saveAll, smoothing, lookahead, resamplingMethod,
                    silent = TRUE,
-                   iNodePrev, mvWSamplesWTSaved,
-                   mvWSamplesXSaved,
-                   mvEWSamplesXSaved,
-                   logLikeVals, target,
+                   iNodePrev, target,
                    mvSamplesEst) {
     notFirst <- iNode != 1
     last <- iNode == length(nodes)
@@ -245,62 +232,20 @@ auxFStepUpdate <- nimbleFunction(
     }
     return(outLL)
      }else{
-       #if(notFirst){
-    #   #  for(i in 1:m) {
-    #     #  if(smoothing == 1){
-    #         ## smoothing is only allowed if saveAll is TRUE, so this should be ok.
-    #         ## i.e., mvEWSamples have been resampled.
-    #         #copy(mvEWSamples, mvWSamples, nodes = allPrevNodes,
-    #         #     nodesTo = allPrevNodes, row = i, rowTo=i)
-    #       #}
+# for t < iNodePrev
            for(i in 1:m) {
-    #         #if(notFirst) {
-    #         #  if(smoothing == 1){
-    #         #    copy(mvEWSamples, mvWSamples, nodes = allPrevNodes,
-    #         #        nodesTo = allPrevNodes, row = iterRun, rowTo=i)
-    #         # }
-    #         #copy(mvEWSamples, model, nodes = prevXName, nodesTo = prevNode, row = i)
-    #         #model$calculate(prevDeterm)
-    #         #}
-    #
-    #copy(mvSamplesEst, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
-    #copy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
              nimCopy(mvSamplesEst, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
              nimCopy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
-    #
-    #
-    #         #if(t == 1){
-    #         #  storeModelValues <<- values(model, targetNodesAsScalar)
-    #         #}
-    #         #for(k in 1:nTarget){
              nimCopy(from = mvSamplesEst, to = model, nodes = target,row = iterRun)
              if(notFirst) {
                model$calculate(prevDeterm)
              }
-    #         # model$calculate(prevDeterm)
-    #         #}
-    #         #mvWSamples[latent,i][currInd] <<- mvWSamplesXSaved[i, currInd]
-    #         #mvEWSamples[latent,i][currInd] <<- mvEWSamplesXSaved[i, currInd]
-    #        # mvWSamples['wts',i][currInd] <<- mvWSamplesWTSaved[i, currInd]
-    #        # mvWSamples['bootLL',i][currInd] <<- logLikeVals[1, currInd]
-    #
-    #        # wts[i] <- mvWSamplesWTSaved[i, currInd]
-    #       #}
-    #
-    #       #copy(mvWSamplesXSaved, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
-    #       #copy(mvEWSamplesXSaved, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
-    #       #mvWSamples[latent,i][currInd] <<- mvWSamplesXSaved[i, currInd]
-    #       #mvEWSamples[latent,i][currInd] <<- mvEWSamplesXSaved[i, currInd]
-    #      mvWSamples['wts',i][currInd] <<- 1 #1mvWSamplesWTSaved[i, currInd]
-    #       mvWSamples['auxlog',i][currInd] <<- logLikeVals[1, currInd]
-    #
-           wts[i] <- 1 #mvWSamplesWTSaved[i, currInd]
+
+           wts[i] <- 1
          }
-    #   #maxWt <- max(wts)
-    #   #normWts <- exp(wts - maxWt)/sum(exp(wts - maxWt))
-    #
-         outLL <- 0 #logLikeVals[1, currInd]
-    #
+
+         outLL <- 0
+
          ess <<- 1/sum(wts^2)
         return(outLL)
      }
@@ -391,9 +336,7 @@ auxFStepUpdate <- nimbleFunction(
 buildAuxiliaryFilterUpdate <- nimbleFunction(
   name = 'buildAuxiliaryFilterUpdate',
   #contains = auxStepVirtual1Update,
-  setup = function(model, nodes, mvWSamplesWTSaved,
-                   mvWSamplesXSaved, mvEWSamplesXSaved,
-                   logLikeVals, mvSamplesEst, target, control = list()) {
+  setup = function(model, nodes, mvSamplesEst, target, control = list()) {
 
     ## Control list extraction.
     saveAll <- control[['saveAll']]
@@ -490,63 +433,13 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
                                                  sizes = size))
     }
 
-    #for(currInd in 1:iNodePrev){
-    # for(i in 1:1000){
-    #  mvWSamples['wts', i][currInd] <-  cModel$mvWSamples['wts', i][currInd]
-    #   mvWSamples['x',i ][currInd] <-  cModel$mvWSamples['x', i][currInd]
-    #  mvEWSamples['x',i ][currInd] <-  cModel$mvEWSamples['x', i][currInd]
-    #}
-    #}
-
-    # mvWSamples <-  modelValues(cModel$mvWSamples)
-    # mvEWSamples <- cModel$mvEWSamples
-
-    #for(iNode in 1:iNodePrev){
-    # mvWSamples[['x']] <-  mvWSamplesUpdate[['x']]
-    #mvWSamples[['wts']] <-  mvWSamplesUpdate[['wts']]
-    #mvEWSamples[['x']] <- mvEWSamplesUpdate[['x']]
-    #mvEWSamples[['wts']] <- mvWSamplesUpdate[['wts']]
-    #}
-    #for(iNode in 1:iNodePrev){
-
-    #   prevXName <-  nodes[iNode]
-    #   thisXName <-  nodes[iNode]
-    #
-    #
-    #   #allPrevNodes <- names # dummy value -- not used.
-    #   #prevXName <- names
-    #   #thisXName <- names
-    #
-    #   for(i in 1:M){
-    # nimCopy(mvWSamplesUpdate, mvWSamples, nodes = prevXName, nodesTo = thisXName,
-    #      row = i)
-    #
-    # nimCopy(mvEWSamplesUpdate,mvEWSamples, nodes = thisXName, nodesTo = thisXName, row=i)
-    #   }
-
-    #}
-
-
-
-    #for(iNode in 1:iNodePrev){
-    #  auxStepFunctions1[[iNode]] <- cModel$auxStepFunctions[[iNode]]
-    #}
-
-    # for(iNode in seq_along(nodes))
-    #   auxStepFunctions1[[iNode]] <- auxFStepUpdate(model, mvEWSamples, mvWSamples,
-    #                                         nodes, iNode, names, saveAll,
-    #                                         smoothing, lookahead,
-    #                                         resamplingMethod, silent, iNodePrev,mvWSamplesWTSaved,
-    #                                         mvWSamplesXSaved, mvEWSamplesXSaved)
     names <- names[1]
     auxStepFunctionsUpdate <- nimbleFunctionList(auxStepVirtual2)
     for(iNode in seq_along(nodes))
       auxStepFunctionsUpdate[[iNode]] <- auxFStepUpdate(model, mvEWSamples, mvWSamples, nodes, iNode, names,
                                                    saveAll, smoothing, lookahead, resamplingMethod,
                                                    silent,
-                                                   iNodePrev, mvWSamplesWTSaved,
-                                                   mvWSamplesXSaved,
-                                                   mvEWSamplesXSaved, logLikeVals,
+                                                   iNodePrev,
                                                    target,
                                                    mvSamplesEst)
 
@@ -566,7 +459,6 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
     for(iNode in seq_along(auxStepFunctionsUpdate)){
       logL <- logL + auxStepFunctionsUpdate[[iNode]]$run(m, iterRun, storeModelValues)
       essVals[iNode] <<- auxStepFunctionsUpdate[[iNode]]$returnESS()
-      #essVals[iNode] <<- rep(0, length(nodes))[1]
 
       ## When all particles have 0 weight, likelihood becomes NAN
       ## this happens if top-level params have bad values - possible
@@ -576,8 +468,7 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
       if(logL == Inf) {lastLogLik <<- -Inf; return(-Inf)}
     }
     lastLogLik <<- logL
-    runTime <<- iterRun + 1
-   # essVals <<- rep(0.23, length(auxStepFunctionsUpdate))
+    runTime <<- iterRun
     return(logL)
   },
   methods = list(

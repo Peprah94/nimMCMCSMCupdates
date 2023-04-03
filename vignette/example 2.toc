@@ -1,0 +1,18 @@
+\contentsline {section}{\numberline {1}Introduction}{1}{section.1}%
+\contentsline {section}{\numberline {2}State space models}{2}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Sequential Monte Carlo (SMC) methods}{3}{subsection.2.1}%
+\contentsline {subsubsection}{\numberline {2.1.1}Bootstrap particle filter}{5}{subsubsection.2.1.1}%
+\contentsline {subsubsection}{\numberline {2.1.2}Particle Markov Chain Monte Carlo}{5}{subsubsection.2.1.2}%
+\contentsline {section}{\numberline {3}Examples}{8}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Load packages}{8}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Simulating data}{9}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}Defining the NIMBLE model}{10}{subsection.3.3}%
+\contentsline {subsection}{\numberline {3.4}Reduced model}{12}{subsection.3.4}%
+\contentsline {subsection}{\numberline {3.5}Updated model}{14}{subsection.3.5}%
+\contentsline {subsection}{\numberline {3.6}Comparing the various models fit}{15}{subsection.3.6}%
+\contentsline {subsubsection}{\numberline {3.6.1}Comparing individual model parameters}{15}{subsubsection.3.6.1}%
+\contentsline {subsubsection}{\numberline {3.6.2}Comparison plots for selected parameters}{16}{subsubsection.3.6.2}%
+\contentsline {subsubsection}{\numberline {3.6.3}Posterior summaries for models}{17}{subsubsection.3.6.3}%
+\contentsline {subsubsection}{\numberline {3.6.4}Run baseline model}{18}{subsubsection.3.6.4}%
+\contentsline {section}{\numberline {4}References}{18}{section.4}%
+\providecommand \tocbasic@end@toc@file {}\tocbasic@end@toc@file 

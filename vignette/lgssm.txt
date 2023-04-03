@@ -1,0 +1,12 @@
+model{
+  x[1] ~ dnorm(mu0, 1)
+  y[1] ~ dnorm(x[1], 1)
+  for(i in 2:t){
+    x[i] ~ dnorm(x[i-1] * a + b, 1)
+    y[i] ~ dnorm(x[i] * c, 1)
+  }
+  a ~ dunif(0, 1)
+  b ~ dnorm(0, 1)
+  c ~ dnorm(1,1)
+  mu0 ~ dnorm(0, 1)
+}

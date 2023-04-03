@@ -28,31 +28,20 @@ bootFStepUpdate <- nimbleFunction(
                    resamplingMethod,
                    silent = FALSE,
                    iNodePrev,
-                   mvWSamplesWTSaved,
-                   mvWSamplesXSaved,
-                   mvEWSamplesXSaved,
-                   logLikeVals,
                    latent, target,
                    mvSamplesEst) {
+
     notFirst <- iNode != 1
 
-     #if(iNode == iNodePrev){
-     #modelSteps <- particleFilter_splitModelSteps(model, nodes, iNode, notFirst)
-     #prevDeterm <- modelSteps$prevDeterm
-     #prevDeterm <- model$getDependencies(prevNodeUpdates, determOnly = TRUE)
-     #calc_thisNode_self <- modelSteps$calc_thisNode_self
-     #calc_thisNode_deps <- modelSteps$calc_thisNode_deps
-     #prevDeterm <- prevDeterm[!prevDeterm %in%calc_thisNode_deps]
-     #}else{
       modelSteps <- particleFilter_splitModelSteps(model, nodes, iNode, notFirst)
       prevDeterm <- modelSteps$prevDeterm
       calc_thisNode_self <- modelSteps$calc_thisNode_self
       calc_thisNode_deps <- modelSteps$calc_thisNode_deps
-   # }
+
       targetNodesAsScalar <- model$expandNodeNames(target, returnScalarComponents = TRUE)
       prevNode <- nodes[if(notFirst) iNode-1 else iNode]
       thisNode <- nodes[iNode]
-      #nTarget <- length(target)
+
     ## t is the current time point.
     t <- iNode
     ## Get names of xs node for current and previous time point (used in copy)
@@ -75,18 +64,6 @@ bootFStepUpdate <- nimbleFunction(
     }
     isLast <- (iNode == length(nodes))
     ess <- 0
-    #storeModelValues <- values(model, targetNodesAsScalar)
-
-
-    # type <- rep("double", length(target))
-    # size <- as.list(sapply(target, function(x)length(model$expandNodeNames(x))))
-    #
-    # newValues <- modelValues(modelValuesConf(vars = target,
-    #                                             types = type,
-    #                                             sizes = size))
-    # #resize(mvSamplesEst, m)
-    #names of latent vars
-    #my_setAndCalculate <- mySetAndCalculate(model, target)
 
     resamplerFunctionList <- nimbleFunctionList(resamplerVirtual)
     if(resamplingMethod == 'default'){
@@ -109,24 +86,12 @@ bootFStepUpdate <- nimbleFunction(
                  prevSamp = logical()) {
     returnType(double(1))
     wts <- numeric(m, init=FALSE)
-    #wts1 <- numeric(m, init=FALSE)
     ids <- integer(m, 0)
     llEst <- numeric(m, init=FALSE)
     out <- numeric(2, init=FALSE)
 
     if(t > iNodePrev -1){
-      #nimble::values(model, targetNodesAsScalar) <<- targetValues
-      #my_setAndCalculate(targetValues)
-      #values(model, targetNodesAsScalar) <<- c(targetValues)
-      #for(j in 1:length(targetNodesAsScalar)){
-     # model[[targetNodesAsScalar[j]]] <- targetValues[j]
-      #}
-      #for(j in 1:length(target)){
-       # newValues[[target[j]]] <<- targetValues[j]
-        #nimCopy(from = mvSamplesEst, to = model, nodes = names[j],row = i)
-      #}
       values(model, targetNodesAsScalar) <<- storeModelValues
-      #copy(from = newValues, to = model, nodes = target)
     for(i in 1:m) {
       if(notFirst) {
         if(smoothing == 1){
@@ -211,152 +176,36 @@ bootFStepUpdate <- nimbleFunction(
     }
     return(out)
     }else{
-      #copy(from = mvSamplesEst, to = model, nodes = target,row = iterRun, rowTo = 1)
-      #if(notFirst) {
-       # model$calculate(prevDeterm)
-      #}
+      # for t < iNodePrev
       for(i in 1:m) {
-        #if(notFirst) {
-        #  if(smoothing == 1){
-        #    copy(mvEWSamples, mvWSamples, nodes = allPrevNodes,
-         #        nodesTo = allPrevNodes, row = iterRun, rowTo=i)
-         # }
-          #copy(mvEWSamples, model, nodes = prevXName, nodesTo = prevNode, row = i)
-          #model$calculate(prevDeterm)
-        #}
-
-        #copy(mvSamplesEst, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
-        #copy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
+        #copy the same values from the iteration number to all the M particles
         nimCopy(mvSamplesEst, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
         nimCopy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
 
-        #if(t == 1){
-#  storeModelValues <<- values(model, targetNodesAsScalar)
-#}
-        #for(k in 1:nTarget){
+        # Copy the target values into the model too
     nimCopy(from = mvSamplesEst, to = model, nodes = target,row = iterRun)
+
+    #update the deterministic vars
     if(notFirst) {
       model$calculate(prevDeterm)
     }
-    #  }
-       # model$calculate(prevDeterm)
-        #}
-        #mvWSamples[latent,i][currInd] <<- mvWSamplesXSaved[i, currInd]
-        #mvEWSamples[latent,i][currInd] <<- mvEWSamplesXSaved[i, currInd]
-        mvWSamples['wts',i][currInd] <<- 1#mvWSamplesWTSaved[i, currInd]
-        mvWSamples['bootLL',i][currInd] <<-0 #logLikeVals[1, currInd]
 
-        wts[i] <- 1#mvWSamplesWTSaved[i, currInd]
+    #set previous weights to 1 and log likelihood to 0,
+    #assuming they are deterministic and would not contribute to the model after t > iNodePrev
+        mvWSamples['wts',i][currInd] <<- 1
+        mvWSamples['bootLL',i][currInd] <<-0
+
+        wts[i] <- 1
       }
 
-     # if(notFirst) model$calculate(prevDeterm)
-      #model$calculate(prevDeterm)
-        out[1] <- 0#logLikeVals[1, currInd]
+        out[1] <- 0
         out[2] <- 0
-        #model$simulate(calc_thisNode_self)
-        ## The logProbs of calc_thisNode_self are, correctly, not calculated.
-        #copy(model, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
-       # wts[i]  <- model$calculate(calc_thisNode_deps)
 
-      #    if(is.nan(wts[i])){
-      #     out[1] <- -Inf
-      #     out[2] <- 0
-      #     return(out)
-      #   }
-      #   if(prevSamp == 0){ ## defaults to 1 for first step and then comes from the previous step
-      #     wts[i] <- mvWSamplesWTSaved[i, currInd]
-      #     llEst[i] <- wts[i]
-      #   } else {
-      #     llEst[i] <- mvWSamplesWTSaved[i, currInd]
-      #   }
-      # }
-      #
-      # maxllEst <- max(llEst)
-      # stepllEst <- maxllEst + log(sum(exp(llEst - maxllEst)))
-      # if(is.nan(stepllEst)){
-      #   out[1] <- -Inf
-      #   out[2] <- 0
-      #   return(out)
-      # }
-      # if(stepllEst == Inf | stepllEst == -Inf){
-      #   out[1] <- -Inf
-      #   out[2] <- 0
-      #   return(out)
-      # }
-      #
-      # out[1] <- logLikeVals[1, currInd]
-      #
-      # ## Normalize weights and calculate effective sample size, using log-sum-exp trick to avoid underflow.
-       #maxWt <- max(wts)
-       #wts <- exp(wts - maxWt)/sum(exp(wts - maxWt))
        ess <<- 1/sum(wts^2)
-      #
-      # ## Determine whether to resample by weights or not.
-      # if(ess < threshNum){
-      #   if(defaultResamplerFlag){
-      #     rankSample(wts, m, ids, silent)
-      #   } else {
-      #     ids <- resamplerFunctionList[[1]]$run(wts)
-      #   }
-      #   ## out[2] is an indicator of whether resampling takes place.
-      #   ## Resampling affects how ll estimate is calculated at next time point.
-      #   out[2] <- 1
-      #   for(i in 1:m){
-      #     copy(mvWSamples, mvEWSamples, nodes = thisXName, nodesTo = thisXName,
-      #          row = ids[i], rowTo = i)
-      #     if(smoothing == 1){
-      #       copy(mvWSamples, mvEWSamples, nodes = allPrevNodes,
-      #            nodesTo = allPrevNodes, row = ids[i], rowTo=i)
-      #     }
-      #     mvWSamples['wts',i][currInd] <<- mvWSamplesWTSaved[i, currInd]
-      #   }
-      # } else {
-      #   out[2] <- 0
-      #   for(i in 1:m){
-      #     copy(mvWSamples, mvEWSamples, nodes = thisXName, nodesTo = thisXName,
-      #          row = i, rowTo = i)
-      #     if(smoothing == 1){
-      #       copy(mvWSamples, mvEWSamples, nodes = allPrevNodes,
-      #            nodesTo = allPrevNodes, row = i, rowTo=i)
-      #     }
-      #     mvWSamples['wts',i][currInd] <<- mvWSamplesWTSaved[i, currInd]
-      #   }
-      # }
-      # for(i in 1:m){
-      #   mvWSamples['bootLL',i][currInd] <<- out[1]
-      # }
+
       return(out)
 
-      #  for(i in 1: m){
-      #    copy(mvEWSamples, model, nodes = prevXName, nodesTo = prevNode, row = i)
-      #   model$calculate(prevDeterm)
-      #    mvWSamples['x', i][currInd] <<- mvWSamplesXSaved[i, currInd]
-      #    #copy(mvWSamples, model, nodes = thisNode, nodesTo = thisXName, row = i)
-      #    #wts[i]  <- mvWSamplesWTSaved[i, currInd]
-      #    mvWSamples['wts', i][currInd] <<- mvWSamplesWTSaved[i, currInd]
-      # #
-      #  mvEWSamples['x', i][currInd] <<- mvEWSamplesXSaved[i, currInd]
-      #     #wts[i] <-  mvWSamplesWTSaved[i, currInd]
-      #  }
-      # #
-      # for(i in 1:m){
-      #    out[1] <- mvWSamples[1,currInd]
-      #    out[2] <- 0
-      # }
-      # return(out)
-      ## The logProbs of calc_thisNode_self are, correctly, not calculated.
 
-        #
-        #   }
-        #   if(lookahead == "mean"){
-        #     for(j in 1:numLatentNodes)
-        #       auxFuncList[[j]]$lookahead()
-        #   } else auxFuncList[[1]]$lookahead()
-        #   copy(model, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row=i)
-        #   copy(mvEWSamples, mvWSamples, thisXName, thisXName, row = i,  rowTo = i)
-        # }
-        #}
-    #}
   }
     },
   methods = list(
@@ -364,13 +213,6 @@ bootFStepUpdate <- nimbleFunction(
       returnType(double(0))
       return(ess)
     }
-    # },
-    # generateProposalVector = function() {
-    #  # propValueVector <- targetValues  ## last argument specifies prec_param = FALSE
-    #   values(model, target) <<- targetValues
-    #   returnType(double(1))
-    #   return(propValueVector)
-    # }
   )
 )
 
@@ -458,8 +300,7 @@ bootFStepUpdate <- nimbleFunction(
 
 buildBootstrapFilterUpdate <- nimbleFunction(
   name = 'buildBootstrapFilterUpdate',
-  setup = function(model, nodes, mvWSamplesWTSaved,
-                   mvWSamplesXSaved, mvEWSamplesXSaved, logLikeVals, mvSamplesEst = list(), target, control = list()) {
+  setup = function(model, nodes, mvSamplesEst = list(), target, control = list()) {
 
     #control list extraction
     thresh <- control[['thresh']]
@@ -549,23 +390,10 @@ buildBootstrapFilterUpdate <- nimbleFunction(
                                                     nodes, iNode, names, saveAll,
                                                     smoothing, resamplingMethod,
                                                     silent,
-                                                    iNodePrev, mvWSamplesWTSaved,
-                                                    mvWSamplesXSaved, mvEWSamplesXSaved,
-                                                    logLikeVals, latent,
+                                                    iNodePrev, latent,
                                                     target, mvSamplesEst)
     }
-    # bootStepFunctions <- nimbleFunctionList(bootStepVirtualUpdate)
-    # for(iNode in seq_along(nodes)){
-    #   bootStepFunctions[[iNode]] <- bootFStepUpdate(model, mvEWSamples, mvWSamples,
-    #                                           nodes, iNode, names, saveAll,
-    #                                           smoothing, resamplingMethod,
-    #                                           silent,
-    #                                           iNodePrev, mvWSamplesWTSaved,
-    #                                           mvWSamplesXSaved, mvEWSamplesXSaved,
-    #                                           logLikeVals, latent, target, mvSamplesEst, iter)
-    # }
-   # targetNodesAsScalar <- model$expandNodeNames(target, returnScalarComponents = TRUE)
-    #lTarget <- c(values(model, targetNodesAsScalar)) #default target values
+
     essVals <- rep(0, length(nodes))
     lastLogLik <- -Inf
     runTime <- 1
@@ -595,7 +423,7 @@ buildBootstrapFilterUpdate <- nimbleFunction(
       if(logL == Inf)  {lastLogLik <<- -Inf; return(-Inf)}
     }
     lastLogLik <<- logL
-    runTime <<- iterRun + 1
+    runTime <<- iterRun
     return(logL)
   },
   methods = list(
