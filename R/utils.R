@@ -163,19 +163,21 @@ findLatentNodes <- function(model, nodes, timeIndex = NULL) {
     return(nodes)
 }
 
-# mySetAndCalculate <- nimbleFunction(
-#   name = 'mySetAndCalculate',
-#   setup = function(model, targetNodes) {
-#     targetNodesAsScalar <- model$expandNodeNames(targetNodes, returnScalarComponents = TRUE)
-#     calcNodes <- model$getDependencies(targetNodes)
-#   },
-#   run = function(targetValues = double(1)) {
-#     values(model, targetNodesAsScalar) <<- targetValues
-#     lp <- model$calculate(calcNodes)
-#     returnType(double())
-#     return(lp)
-#   }
-# )
+ mySetAndCalculateUpdate <- nimbleFunction(
+   name = 'mySetAndCalculateUpdate',
+   setup = function(model, targetNodes, mvSamplesEst ) {# postSamples) {
+     targetNodesAsScalar <- model$expandNodeNames(targetNodes, returnScalarComponents = TRUE)
+     calcNodes <- model$getDependencies(targetNodes)
+   },
+   run = function(iterRan = double(0)) {
+    nimCopy(from = mvSamplesEst, to = model, nodes = targetNodes,row = iterRan)
+    # my_particleFilter$run(m = m, iterRun = iterRan, storeModelValues = values(model, target))
+     #values(model, targetNodesAsScalar) <<- postSamples[iterRan, targetNodesAsScalar]
+     lp <- model$calculate(calcNodes)
+     returnType(double())
+     return(lp)
+  }
+)
 #
 # mygenerateProposalVector = function(model, target) {
 #   propValueVector <- values(model,target) ## last argument specifies prec_param = FALSE
@@ -197,3 +199,134 @@ findLatentNodes <- function(model, nodes, timeIndex = NULL) {
 #     return(targetValues)
 #   }
 # )
+
+ #' Creates a nimbleFunction for executing the Metropolis-Hastings jumping decision,
+ #' and updating values in the model, or in a carbon copy modelValues object, accordingly.
+ #'
+ #' This nimbleFunction generator must be specialized to three required arguments: a model, a modelValues, and a character vector of node names.
+ #'
+ #' @param model An uncompiled or compiled NIMBLE model object.
+ #' @param mvSaved A modelValues object containing identical variables and logProb variables as the model. Can be created by \code{modelValues(model)}.
+ #' @param target A character vector providing the target node.
+ #' @param calcNodes A character vector representing a set of nodes in the model (and hence also the modelValues) object.
+ #' @author Daniel Turek
+ #' @export
+ #' @details
+ #' Calling decideAndJump(model, mvSaved, calcNodes) will generate a specialized nimbleFunction with four required numeric arguments:
+ #'
+ #' modelLP1: The model log-probability associated with the newly proposed value(s)
+ #'
+ #' modelLP0: The model log-probability associated with the original value(s)
+ #'
+ #' propLP1: The log-probability associated with the proposal forward-transition
+ #'
+ #' propLP0: The log-probability associated with the proposal reverse-tranisiton
+ #'
+ #' Executing this function has the following effects:
+ #' -- Calculate the (log) Metropolis-Hastings ratio, as logMHR = modelLP1 - modelLP0 - propLP1 + propLP0
+ #' -- Make the proposal acceptance decision based upon the (log) Metropolis-Hastings ratio
+ #' -- If the proposal is accepted, the values and associated logProbs of all calcNodes are copied from the model object into the mvSaved object
+ #' -- If the proposal is rejected, the values and associated logProbs of all calcNodes are copied from the mvSaved object into the model object
+ #' -- Return a logical value, indicating whether the proposal was accepted
+ myDecideAndJump <- nimbleFunction(
+   name = 'myDecideAndJump',
+   setup = function(model, mvSaved, target, latents, mvSamplesEst, calcNodes) {
+     ccList <- myMcmc_determineCalcAndCopyNodes(model, target)
+     copyNodesDeterm <- ccList$copyNodesDeterm; copyNodesStoch <- ccList$copyNodesStoch  # not used: calcNodes, calcNodesNoSelf
+     #extraStoch <- copyNodesStoch[!copyNodesStoch %in% model$expandNodeNames(latents) ]
+     #index <- ceiling(runif(1, 0, m))
+     },
+   run = function(modelLP1 = double(), modelLP0 = double(), propLP1 = double(), propLP0 = double(), iterRan = integer()) {
+     logMHR <- modelLP1 - modelLP0 - propLP1 + propLP0
+     jump <- decide(logMHR)
+     if(jump) {
+       nimCopy(from = model, to = mvSaved, row = 1, nodes = target, logProb = TRUE)
+       #values(model, latents) <<- pfNewModelValues
+       #nimCopy(from = model, to = mvSaved, row = 1, nodes = latents, logProb = FALSE)
+       nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesDeterm, logProb = FALSE)
+       nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesStoch, logProbOnly = TRUE)
+
+       #copy(particleMV, model, latents, latents, index)
+       #calculate(model, latentDep)
+       #copy(from = model, to = mvSaved, nodes = latentDep, row = 1, logProb = TRUE)
+       } else {
+       nimCopy(from = mvSamplesEst, to = model, row = iterRan,  nodes = target)
+         #nimCopy(oldParticleMV, model, latents, latents, index)
+         #calculate(model, latentDep)
+         #nimCopy(from = model, to = mvSaved, nodes = latentDep, row = 1, logProb = TRUE)
+       #values(model, latents) <<- pfModelValues
+       #nimCopy(from = saveOldVars, to = model, row = 1, nodes = latents, logProb = FALSE)
+       #nimCopy(from = mvSaved, to = model, row = 1, nodes = copyNodesDeterm, logProb = FALSE)
+      # nimCopy(from = mvSaved, to = model, row = 1, nodes = copyNodesStoch, logProbOnly = TRUE)
+      #save the old values
+        nimCopy(from = model, to = mvSaved, row = 1, nodes = target, logProb = TRUE)
+       #nimCopy(from = model, to = mvSaved, row = 1, nodes = latents, logProb = FALSE)
+       nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesDeterm, logProb = FALSE)
+       nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesStoch, logProbOnly = TRUE)
+     }
+     returnType(logical())
+     return(jump)
+   }
+ )
+
+ myMcmc_determineCalcAndCopyNodes <- function(model, target) {
+   targetExpanded <- model$expandNodeNames(target)
+   modelPredictiveNodes <- model$getNodeNames(predictiveOnly = TRUE)
+   targetExpandedPPbool <- targetExpanded %in% modelPredictiveNodes
+   targetAllPP <- all(targetExpandedPPbool)
+   targetAnyPP <- any(targetExpandedPPbool)
+   ## if a particular sampler is assigned *jointly to PP and non-PP* nodes, then we're going to bail
+   ## out and quit, if the option MCMCusePredictiveDependenciesInCalculations == FALSE.
+   ## this is an extreme corner-case, which I think will lead to problems.
+   if(targetAnyPP && !targetAllPP && !getNimbleOption('MCMCusePredictiveDependenciesInCalculations'))
+     stop('cannot assign samplers jointly to posterior predictive (PP) nodes and non-PP nodes, when MCMCusePredictiveDependenciesInCalculations option is FALSE', call. = FALSE)
+   ## if the sampler calling this, itself, is operating exclusively on posterior predictive nodes,
+   ## then regardless of how the rest of the model is being sampled (w.r.t. inclusion of posterior predictive nodes),
+   ## we'll include 'self' and all stochastic dependencies (the full markov blanket) in the calculations,
+   ## which necessarily are taking place entirely within a posterior predictive network of nodes.
+   ## this should lead to correct behaviour (consistent samples and joint posteriors) in all cases.
+   if(targetAllPP) {
+     ## when sampler is operating only on posterior predictive nodes,
+     ## then always include all predictive dependencies:
+     calcNodes <- model$getDependencies(target, includePredictive = TRUE)
+     calcNodesNoSelf <- model$getDependencies(target, self = FALSE, includePredictive = TRUE)
+     ##calcNodesPPomitted <- character()
+   } else {
+     ## usual case:
+     calcNodes <- model$getDependencies(target)
+     calcNodesNoSelf <- model$getDependencies(target, self = FALSE)
+     ##calcNodesPPomitted <- setdiff(model$getDependencies(target, includePredictive = TRUE), calcNodes)
+   }
+   ## copyNodes:
+   copyNodes <- model$getDependencies(target, self = FALSE)
+   isStochCopyNodes <- model$isStoch(copyNodes)
+   copyNodesDeterm <- copyNodes[!isStochCopyNodes]
+   copyNodesStoch <- copyNodes[isStochCopyNodes]
+   ##
+   ccList <- list(
+     calcNodes = calcNodes,
+     calcNodesNoSelf = calcNodesNoSelf,
+     ##calcNodesPPomitted = calcNodesPPomitted,
+     copyNodesDeterm = copyNodesDeterm,
+     copyNodesStoch = copyNodesStoch
+   )
+   return(ccList)
+ }
+
+
+
+ mySetAndCalculateUpdate1 <- nimbleFunction(
+   name = 'mySetAndCalculateUpdate1',
+   setup = function(model, targetNodes, mvSamplesEst, myParticleFilter,m) {# postSamples) {
+     targetNodesAsScalar <- model$expandNodeNames(targetNodes, returnScalarComponents = TRUE)
+     calcNodes <- model$getDependencies(targetNodes)
+   },
+   run = function(iterRan = double(0)) {
+     nimCopy(from = mvSamplesEst, to = model, nodes = targetNodes,row = iterRan)
+     my_particleFilter$run(m = m, iterRun = iterRan, storeModelValues = values(model, targetNodes))
+     #values(model, targetNodesAsScalar) <<- postSamples[iterRan, targetNodesAsScalar]
+     lp <- my_particleFilter$mvEWSamples
+     returnType(double())
+     return(lp)
+   }
+ )

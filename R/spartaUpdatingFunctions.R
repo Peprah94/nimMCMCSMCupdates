@@ -510,7 +510,7 @@ spartaNimUpdates <- function(model, #nimbleModel
 
   message("Setting up the MCMC Configuration")
   #newModel <- model$newModel(replicate = TRUE)
-  modelMCMCconf <- nimble::configureMCMC(model, nodes = NULL)
+  modelMCMCconf <- nimble::configureMCMC(model, nodes = NULL, monitors = c(target, latent))
 
   if(is.null(pfType)){
     pfTypeUpdate = 'bootstrapUpdate'
@@ -529,11 +529,14 @@ if(pfType == "bootstrap"){
                            type = 'RW_PF_blockUpdate',
                            control = list(latents = latent,
                                           target = target,
-                                          adaptInterval = n.iter,
+                                          adaptive = FALSE,
+                                          scale = 4,
                                           pfControl = list(saveAll = TRUE, M = M, iNodePrev = iNodePrev),
                                           pfNparticles = nParFiltRun,
                                           pfType = pfTypeUpdate,
-                                          mvSamplesEst = mvSamplesEst))
+                                          postSamples = postReducedMCMC$samples[[chain.iter]],
+                                           mvSamplesEst = mvSamplesEst)
+  )
 
   modelMCMCconf$addMonitors(additionalPars)
 

@@ -236,8 +236,10 @@ auxFStepUpdate <- nimbleFunction(
            for(i in 1:m) {
              nimCopy(mvSamplesEst, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
              nimCopy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
-             nimCopy(from = mvSamplesEst, to = model, nodes = target,row = iterRun)
-             if(notFirst) {
+
+            nimCopy(from = mvSamplesEst, to = model, nodes = target,row = iterRun)
+
+            if(notFirst) {
                model$calculate(prevDeterm)
              }
 
@@ -353,7 +355,7 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
     if(is.null(saveAll)) saveAll <- FALSE
     if(is.null(smoothing)) smoothing <- FALSE
     if(is.null(lookahead)) lookahead <- 'simulate'
-    if(is.null(initModel)) initModel <- TRUE
+    if(is.null(initModel)) initModel <- FALSE
     if(!saveAll & smoothing) stop("must have saveAll = TRUE for smoothing to
                                   work")
     if(lookahead == "mean"){
@@ -446,6 +448,7 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
     essVals <- rep(0, length(nodes))
     lastLogLik <- -Inf
     runTime <- 1
+    particleMV <- mvEWSamples
   },
   run = function(m = integer(default = 10000),
                  iterRun = integer(default = 1),
@@ -469,6 +472,7 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
     }
     lastLogLik <<- logL
     runTime <<- iterRun
+    particleMV <<- 1 #mvEWSamples
     return(logL)
   },
   methods = list(
@@ -486,7 +490,14 @@ getLastTimeRan = function() {
 setLastTimeRan = function(lll = double()) {
   runTime <<- lll + 1
 },
-    returnESS = function(){
+getLastParticleMV = function() {
+  return(particleMV)
+  returnType(double())
+},
+setLastParticleMV = function(lll = double()) {
+  particleMV <<- lll
+},
+  returnESS = function(){
        returnType(double(1))
        return(essVals)
      }
