@@ -233,15 +233,15 @@ auxFStepUpdate <- nimbleFunction(
     return(outLL)
      }else{
 # for t < iNodePrev
-           for(i in 1:m) {
+       nimCopy(from = mvSamplesEst, to = model, nodes = target,row = iterRun)
+      if(notFirst) {
+         model$calculate(prevDeterm)
+       }
+
+       for(i in 1:m) {
              nimCopy(mvSamplesEst, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
              nimCopy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
 
-            nimCopy(from = mvSamplesEst, to = model, nodes = target,row = iterRun)
-
-            if(notFirst) {
-               model$calculate(prevDeterm)
-             }
 
            wts[i] <- 1
          }
@@ -448,7 +448,7 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
     essVals <- rep(0, length(nodes))
     lastLogLik <- -Inf
     runTime <- 1
-    particleMV <- mvEWSamples
+    #index <-
   },
   run = function(m = integer(default = 10000),
                  iterRun = integer(default = 1),
@@ -472,7 +472,6 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
     }
     lastLogLik <<- logL
     runTime <<- iterRun
-    particleMV <<- 1 #mvEWSamples
     return(logL)
   },
   methods = list(
@@ -485,17 +484,10 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
 },
 getLastTimeRan = function() {
   return(runTime)
-  returnType(integer())
+  returnType(double())
 },
 setLastTimeRan = function(lll = double()) {
   runTime <<- lll + 1
-},
-getLastParticleMV = function() {
-  return(particleMV)
-  returnType(double())
-},
-setLastParticleMV = function(lll = double()) {
-  particleMV <<- lll
 },
   returnESS = function(){
        returnType(double(1))

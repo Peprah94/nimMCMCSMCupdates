@@ -165,15 +165,19 @@ findLatentNodes <- function(model, nodes, timeIndex = NULL) {
 
  mySetAndCalculateUpdate <- nimbleFunction(
    name = 'mySetAndCalculateUpdate',
-   setup = function(model, targetNodes, mvSamplesEst ) {# postSamples) {
+   setup = function(model, targetNodes, latents, mvSamplesEst, my_particleFilter, m, mvSaved) {# postSamples) {
      targetNodesAsScalar <- model$expandNodeNames(targetNodes, returnScalarComponents = TRUE)
      calcNodes <- model$getDependencies(targetNodes)
+     particleMVold <- my_particleFilter$mvEWSamples
    },
    run = function(iterRan = double(0)) {
+     index <- ceiling(runif(1, 0, m))
     nimCopy(from = mvSamplesEst, to = model, nodes = targetNodes,row = iterRan)
-    # my_particleFilter$run(m = m, iterRun = iterRan, storeModelValues = values(model, target))
+   lp <-  my_particleFilter$run(m = m, iterRun = iterRan, storeModelValues = values(model, targetNodes))
+   nimCopy(from =  particleMVold, to = model, nodes = latents, row = index, rowTo =1)
+   #nimCopy(particleMVold, mvSaved, latents, latents, row = index)
      #values(model, targetNodesAsScalar) <<- postSamples[iterRan, targetNodesAsScalar]
-     lp <- model$calculate(calcNodes)
+     #lp <- model$calculate(calcNodes)
      returnType(double())
      return(lp)
   }
@@ -236,7 +240,7 @@ findLatentNodes <- function(model, nodes, timeIndex = NULL) {
      #extraStoch <- copyNodesStoch[!copyNodesStoch %in% model$expandNodeNames(latents) ]
      #index <- ceiling(runif(1, 0, m))
      },
-   run = function(modelLP1 = double(), modelLP0 = double(), propLP1 = double(), propLP0 = double(), iterRan = integer()) {
+   run = function(modelLP1 = double(), modelLP0 = double(), propLP1 = double(), propLP0 = double(), iterRan = double()) {
      logMHR <- modelLP1 - modelLP0 - propLP1 + propLP0
      jump <- decide(logMHR)
      if(jump) {
@@ -259,10 +263,10 @@ findLatentNodes <- function(model, nodes, timeIndex = NULL) {
        #nimCopy(from = mvSaved, to = model, row = 1, nodes = copyNodesDeterm, logProb = FALSE)
       # nimCopy(from = mvSaved, to = model, row = 1, nodes = copyNodesStoch, logProbOnly = TRUE)
       #save the old values
-        nimCopy(from = model, to = mvSaved, row = 1, nodes = target, logProb = TRUE)
+        #nimCopy(from = model, to = mvSaved, row = 1, nodes = target, logProb = TRUE)
        #nimCopy(from = model, to = mvSaved, row = 1, nodes = latents, logProb = FALSE)
-       nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesDeterm, logProb = FALSE)
-       nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesStoch, logProbOnly = TRUE)
+       #nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesDeterm, logProb = FALSE)
+       #nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesStoch, logProbOnly = TRUE)
      }
      returnType(logical())
      return(jump)
@@ -315,18 +319,18 @@ findLatentNodes <- function(model, nodes, timeIndex = NULL) {
 
 
 
- mySetAndCalculateUpdate1 <- nimbleFunction(
-   name = 'mySetAndCalculateUpdate1',
-   setup = function(model, targetNodes, mvSamplesEst, myParticleFilter,m) {# postSamples) {
-     targetNodesAsScalar <- model$expandNodeNames(targetNodes, returnScalarComponents = TRUE)
-     calcNodes <- model$getDependencies(targetNodes)
-   },
-   run = function(iterRan = double(0)) {
-     nimCopy(from = mvSamplesEst, to = model, nodes = targetNodes,row = iterRan)
-     my_particleFilter$run(m = m, iterRun = iterRan, storeModelValues = values(model, targetNodes))
-     #values(model, targetNodesAsScalar) <<- postSamples[iterRan, targetNodesAsScalar]
-     lp <- my_particleFilter$mvEWSamples
-     returnType(double())
-     return(lp)
-   }
- )
+ # mySetAndCalculateUpdate1 <- nimbleFunction(
+ #   name = 'mySetAndCalculateUpdate1',
+ #   setup = function(model, targetNodes, mvSamplesEst, myParticleFilter,m) {# postSamples) {
+ #     targetNodesAsScalar <- model$expandNodeNames(targetNodes, returnScalarComponents = TRUE)
+ #     calcNodes <- model$getDependencies(targetNodes)
+ #   },
+ #   run = function(iterRan = double(0)) {
+ #     nimCopy(from = mvSamplesEst, to = model, nodes = targetNodes,row = iterRan)
+ #     my_particleFilter$run(m = m, iterRun = iterRan, storeModelValues = values(model, targetNodes))
+ #     #values(model, targetNodesAsScalar) <<- postSamples[iterRan, targetNodesAsScalar]
+ #     lp <- my_particleFilter$mvEWSamples
+ #     returnType(double())
+ #     return(lp)
+ #   }
+ # )

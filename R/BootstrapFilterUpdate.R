@@ -436,7 +436,7 @@ buildBootstrapFilterUpdate <- nimbleFunction(
     },
     getLastTimeRan = function() {
       return(runTime)
-      returnType(integer())
+      returnType(double())
     },
     setLastTimeRan = function(lll = double()) {
       runTime <<- lll + 1
