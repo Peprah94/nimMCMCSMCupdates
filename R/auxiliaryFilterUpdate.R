@@ -7,7 +7,7 @@
 ##  Pitt et al., 2012
 
 auxStepVirtual2 <- nimble::nimbleFunctionVirtual(
-  run = function(m = integer(),iterRun = integer(),storeModelValues = double(1)) {
+  run = function(m = integer(),iterRun = integer(0),storeModelValues = double(1)) {
     returnType(double())
   },
   methods = list(
@@ -119,7 +119,7 @@ auxFStepUpdate <- nimbleFunction(
     if(resamplingMethod == 'systematic')
       resamplerFunctionList[[1]] <- systematicResampleFunction()
   },
-  run = function(m = integer(),iterRun = integer(),storeModelValues = double(1)) {
+  run = function(m = integer(),iterRun = integer(0),storeModelValues = double(1)) {
     returnType(double())
     auxll <- numeric(m, init=FALSE)
     auxWts <- numeric(m, init=FALSE)
@@ -128,8 +128,8 @@ auxFStepUpdate <- nimbleFunction(
     ll <- numeric(m, init=FALSE)
 
     ## This is the look-ahead step, not conducted for first time-point.
-    if(t > iNodePrev-1){
-    values(model, targetNodesAsScalar) <<- storeModelValues
+    if(t > iNodePrev){
+   values(model, targetNodesAsScalar) <<- storeModelValues
     if(notFirst){
       for(i in 1:m) {
         if(smoothing == 1){
@@ -234,19 +234,28 @@ auxFStepUpdate <- nimbleFunction(
      }else{
 # for t < iNodePrev
        nimCopy(from = mvSamplesEst, to = model, nodes = target,row = iterRun)
-      if(notFirst) {
+     if(notFirst) {
          model$calculate(prevDeterm)
        }
 
        for(i in 1:m) {
              nimCopy(mvSamplesEst, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
              nimCopy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
-
-
            wts[i] <- 1
-         }
+       }
 
-         outLL <- 0
+       for(i in 1:m){
+         ## Save weights for use in next timepoint's look-ahead step.
+         mvWSamples['wts', i][currInd] <<- 1
+       }
+
+       maxWt <- max(wts)
+       outLL <- log(sum(exp(wts - maxWt))) + maxWt - log(m)
+
+       for(i in 1:m){
+         mvWSamples['auxlog',i][currInd] <<- outLL
+       }
+         #outLL <- 0
 
          ess <<- 1/sum(wts^2)
         return(outLL)
@@ -448,6 +457,8 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
     essVals <- rep(0, length(nodes))
     lastLogLik <- -Inf
     runTime <- 1
+
+    iNodePrev <- iNodePrev - 1
     #index <-
   },
   run = function(m = integer(default = 10000),
@@ -484,9 +495,9 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
 },
 getLastTimeRan = function() {
   return(runTime)
-  returnType(double())
+  returnType(integer())
 },
-setLastTimeRan = function(lll = double()) {
+setLastTimeRan = function(lll = integer()) {
   runTime <<- lll + 1
 },
   returnESS = function(){

@@ -186,6 +186,7 @@ spartaNimWeights <- function(model, #nimbleModel
   if(mcmc == TRUE){
     nMCompile <- compileNimble(model)
     #
+    target <- c(target, additionalPars)
     cMCMC <- configureMCMC(model, monitors = c(target, latent))
     #
     bMCMC <- buildMCMC(cMCMC)
@@ -274,6 +275,7 @@ spartaNimWeights <- function(model, #nimbleModel
                                           pfType = pfType))
 
   modelMCMCconf$addMonitors(additionalPars)
+  #modelMCMCconf$addSampler(target = "alphaPhi", type = "RW")
 
   message("Building and compiling the PF MCMC")
   ## build and compile pMCMC sampler
@@ -344,14 +346,19 @@ timetaken2 <- timeEnd - timeStart2
 #message("Extracting the weights and samples from particle fiter")
 
 updateUtils <- function(model, #reduced model
+                        reducedModel,
                         mcmcOut,
                         latent, target, n.iter, m, timeIndex){
 
 latentNodes <- model$expandNodeNames(latent)
 nodes <- findLatentNodes(model, latent, timeIndex)
 
-dims <- lapply(nodes, function(n) nimDim(model[[n]]))
+lastNode <- findLatentNodes(reducedModel, latent, timeIndex )
+lastNode <- lastNode[length(lastNode)]
 
+dims <- lapply(nodes[1:2], function(n) nimDim(model[[n]]))
+
+target <- target[!target %in% latent]
 if(length(unique(dims)) > 1)
   stop('sizes or dimensions of latent states varies')
 vars <- c(model$getVarNames(nodes =  nodes), target)
@@ -387,9 +394,36 @@ mvSamplesEst <- modelValues(modelValuesConf(vars = names,
 for(iter in 1:n.iter){
   for(j in 1:length(names)){
     if(names[j] == latent & length(size[[1]]) > 1){
-    mvSamplesEst[[names[j]]][[iter]] <- matrix(mcmcOut[iter, model$expandNodeNames(names[j])], nrow = size[[1]][1], ncol = size[[1]][2])
+      extraVars <- length(model$expandNodeNames(names[j])) == length(reducedModel$expandNodeNames(names[j]))
+     # extraVars <- model$expandNodeNames(names[j])[!model$expandNodeNames(names[j]) %in% reducedModel$expandNodeNames(names[j])]
+      if(!extraVars){
+      extraValues <- rep(0, length(model$expandNodeNames(nodes[-1])))
+      #names(extraValues) <- extraVars
+      allVals <- c(mcmcOut[iter, reducedModel$expandNodeNames(lastNode)], extraValues)
+      names(allVals) <- model$expandNodeNames(nodes)
+    mvSamplesEst[[names[j]]][[iter]] <- matrix(allVals, nrow = size[[1]][1], ncol = size[[1]][2])
+     }else{
+
+        allVals <- mcmcOut[iter, reducedModel$expandNodeNames(names[j])]
+        mvSamplesEst[[names[j]]][[iter]] <- matrix(allVals, nrow = size[[1]][1], ncol = size[[1]][2])
+      }
     }else{
-      mvSamplesEst[[names[j]]][[iter]] <-  mcmcOut[iter, model$expandNodeNames(names[j])]
+      extraVars <- length(model$expandNodeNames(names[j])) == length(reducedModel$expandNodeNames(names[j]))
+      #print(extraVars)
+     if(!extraVars){
+      if(names[j] == latent){
+      estValues <- c(mcmcOut[iter, reducedModel$expandNodeNames(lastNode)], rep(0, length(model$expandNodeNames(names[j]))-1))
+      names(estValues) <- model$expandNodeNames(names[j])
+      }else{
+        namesExpanded <- reducedModel$expandNodeNames(names[j])
+        lastName <- namesExpanded[length(namesExpanded)]
+       estValues <- c(mcmcOut[iter, lastName ], rep(0, length(model$expandNodeNames(names[j]))-1))
+       names(estValues) <- model$expandNodeNames(names[j])
+      }
+       }else{
+       estValues <- c(mcmcOut[iter, model$expandNodeNames(names[j])])
+     }
+      mvSamplesEst[[names[j]]][[iter]] <-  estValues
     }
 
   }
@@ -436,11 +470,12 @@ spartaNimUpdates <- function(model, #nimbleModel
   samplesList <- lapply(as.list(1:n.chains), function(chain.iter){
     timeStart1 <- Sys.time()
 
-    updateVars <- updateUtils(model = reducedModel, #reduced model
+    updateVars <- updateUtils(model = model, #reduced model
+                              reducedModel = reducedModel,
                 #mcmcOut = postReducedMCMC$samples$chain1,
                 mcmcOut = postReducedMCMC$samples[[chain.iter]],
                           latent = latent,
-              target = target,
+              target = c(target, additionalPars),
               n.iter = n.iter ,
               m = nParFiltRun,
               timeIndex = timeIndex)
@@ -448,16 +483,16 @@ spartaNimUpdates <- function(model, #nimbleModel
   mvSamplesEst =  updateVars$mvSamplesEst #saved weights
 
   #set initial values to the posterior mean of the saved targets and latent states
-  if(!is.null(postReducedMCMC$summary)){
-   inits <- as.list(target)
-   names(inits) <- target
-   for(i in 1:length(target)){
-     expandTarget <- model$expandNodeNames(target[i])
-     inits[[target[i]]] <- c(postReducedMCMC$summary[[chain.iter]][expandTarget, 'Mean'])
-   }
+  #if(!is.null(postReducedMCMC$summary)){
+  # inits <- as.list(target)
+  # names(inits) <- target
+  # for(i in 1:length(target)){
+  #   expandTarget <- model$expandNodeNames(target[i])
+  #   inits[[target[i]]] <- c(postReducedMCMC$summary[[chain.iter]][expandTarget, 'Mean'])
+  # }
 
-   model$setInits(inits)
-  }
+  # model$setInits(inits)
+  #}
 
   #create new model for weights
   estimationModel <- model$newModel(replicate = TRUE)
@@ -508,9 +543,15 @@ spartaNimUpdates <- function(model, #nimbleModel
    }
    }
 
+  #checking if the updated pF works very well
+ # compiledParticleFilter <- compileNimble(estimationModel,  particleFilterEst)
+  #compiledParticleFilter$particleFilterEst$run(m = 10000, iterRun = 40, storeModelValues = values(estimationModel, targetNodes))
+
   message("Setting up the MCMC Configuration")
   #newModel <- model$newModel(replicate = TRUE)
-  modelMCMCconf <- nimble::configureMCMC(model, nodes = NULL, monitors = c(target, latent))
+  modelMCMCconf <- nimble::configureMCMC(model,
+                                         monitors = c(target, latent, additionalPars))
+                                         # nodes = NULL)#, monitors = c(target, latent, additionalPars))
 
   if(is.null(pfType)){
     pfTypeUpdate = 'bootstrapUpdate'
@@ -530,12 +571,15 @@ if(pfType == "bootstrap"){
                            control = list(latents = latent,
                                           #target = target,
                                           adaptive = FALSE,
+                                          adaptInterval = 100,
                                           scale = 1,
-                                          pfControl = list(saveAll = TRUE, M = M, iNodePrev = iNodePrev),
+                                         # pf = particleFilter,
+                                          pfControl = pfControl, #list( M = M, iNodePrev = iNodePrev),
                                           pfNparticles = nParFiltRun,
                                           pfType = pfTypeUpdate,
                                           postSamples = postReducedMCMC$samples[[chain.iter]],
-                                           mvSamplesEst = mvSamplesEst)
+                                           mvSamplesEst = mvSamplesEst,
+                                          reducedModel = reducedModel)
   )
 
   modelMCMCconf$addMonitors(additionalPars)

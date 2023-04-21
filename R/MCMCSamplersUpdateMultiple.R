@@ -233,8 +233,8 @@
 #######################################################################################
 #' @rdname samplers
 #' @export
-sampler_RW_PF_blockUpdate <- nimbleFunction(
-  name = 'sampler_RW_PF_blockUpdate',
+sampler_RW_PF_blockUpdateMultiple <- nimbleFunction(
+  name = 'sampler_RW_PF_blockUpdateMultiple',
   contains = sampler_BASE,
   setup = function(model, mvSaved, target, control) {
     ## control list extraction
@@ -244,14 +244,13 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     adaptFactorExponent <- extractControlElement(control, 'adaptFactorExponent',  0.8)
     scale               <- extractControlElement(control, 'scale',                1)
     propCov             <- extractControlElement(control, 'propCov',              'identity')
-    propCov1             <- extractControlElement(control, 'propCov',              'identity')
     existingPF          <- extractControlElement(control, 'pf',                   NULL)
     m                   <- extractControlElement(control, 'pfNparticles',         1000)
     filterType          <- extractControlElement(control, 'pfType',               'bootstrapUpdate')
     filterControl       <- extractControlElement(control, 'pfControl',            list())
     optimizeM           <- extractControlElement(control, 'pfOptimizeNparticles', FALSE)
     latents             <- extractControlElement(control, 'latents',              error = 'RW_PF sampler missing required control argument: latents')
-  # postSamples <- extractControlElement(control, 'postSamples', double())
+    # postSamples <- extractControlElement(control, 'postSamples', double())
     mvSamplesEst <- extractControlElement(control, 'mvSamplesEst', double())
     reducedModel <- extractControlElement(control, 'reducedModel', double())
     #target <- extractControlElement(control, 'target', double())
@@ -272,50 +271,14 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
       latentSamp <- TRUE
     else if(any(model$expandNodeNames(latents) %in% model$expandNodeNames(MCMCmonitors)))
       latentSamp <- TRUE
-
     latentDep <- model$getDependencies(latents)
-
-    # Top parameters
     topParams <- model$getNodeNames(stochOnly=TRUE, includeData=FALSE, topOnly=TRUE)
-
-    topParamsDeps <- model$getDependencies(topParams, self = FALSE, includeData = FALSE, stochOnly = TRUE)
-
-    #Intermediary parameters
-    topParamsInter <- topParamsDeps[!topParamsDeps %in% model$expandNodeNames(latents)]
-
-    #Extra vars to simulate
-    extraTargetVars <- topParamsInter[!grepl("[[1]]", topParamsInter)]
-
-
     target <- model$expandNodeNames(target)
 
-    #Whether we should use multiple
-    #if(all(topParams %in% target) == TRUE){
-   # if(){
-    #  multiple <- TRUE
-   # }else{
-   #   multiple <- FALSE
-   # }
-
-    NotMultiple <- length(topParams) == length(target)
-
-    if(NotMultiple == FALSE){
-      multiple = TRUE
-    }else{
-      multiple = FALSE
-    }
-
-    print(multiple)
-
     #get the extra time dependent vars
-    #uncomment to revert to old
-    #reducedTarget <- reducedModel$expandNodeNames(target)
+    reducedTarget <- reducedModel$expandNodeNames(target)
+    extraTargetVars <- target[!target %in% reducedTarget]
 
-
-    #if we have don't have multiple,
-    #let topParamsInter = targetAsScalar
-    if(NotMultiple == TRUE) topParamsInter = targetAsScalar
-    topParamsInterDep <- model$getDependencies(topParamsInter)
 
     ## numeric value generation
     optimizeM     <- as.integer(optimizeM)
@@ -326,18 +289,12 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     prevLL        <- 0
     nVarEsts      <- 0
     itCount       <- 0
-   # iterRun <- 1
-    d <- length(topParamsInter)
-   # d1 <- length(topParams)
-    #dTopPars <- length(topParams)
+    # iterRun <- 1
+    d <- length(targetAsScalar)
     if(is.character(propCov) && propCov == 'identity')     propCov <- diag(d)
     propCovOriginal <- propCov
     chol_propCov <- chol(propCov)
     chol_propCov_scale <- scale * chol_propCov
-    #if(multiple){
-
-    #}
-
     empirSamp <- matrix(0, nrow=adaptInterval, ncol=d)
     storeParticleLP <- -Inf
     iterRan <- 1
@@ -346,7 +303,7 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     mBurnIn  <- 15   ## number of LL variance estimates to compute before deciding optimal m
     if(optimizeM)   m <- 3000
     ## nested function and function list definitions
-   # newModel <- model$newModel(replicate = TRUE)
+    # newModel <- model$newModel(replicate = TRUE)
 
     if(!is.null(existingPF)) {
       my_particleFilter <- existingPF
@@ -366,7 +323,7 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
         my_particleFilter <- buildAuxiliaryFilterUpdate(model,
                                                         latents,
                                                         mvSamplesEst = mvSamplesEst,
-                                                        target = topParamsInter,
+                                                        target = target,
                                                         control = filterControl)
 
       }
@@ -374,7 +331,7 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
         my_particleFilter <- buildBootstrapFilterUpdate(model,
                                                         latents,
                                                         mvSamplesEst = mvSamplesEst,
-                                                        target = topParamsInter,
+                                                        target = target,
                                                         control = filterControl)
 
 
@@ -393,53 +350,44 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
 
     #Save the latents as scalars for the model fitted with the reduced model parameters
 
-    # Latent states
     latentAsScalar <- model$expandNodeNames(latents, returnScalarComponents = TRUE)
-    #predictivePars <- target[!target %in% topParams]
-
-   # if(!multiple){
-    #  topParamsDeps <- target
-    #}
+    predictivePars <- target[!target %in% topParams]
     #extraParsToSave <- calcNodes[!calcNodes %in% model$expandNodeNames(c(target, latents))]
-    #my_setAndCalculate <- setAndCalculate(model, target)
-    my_setAndCalculate <- setAndCalculate(model, topParamsInter)
-    my_setAndCalculateUpdate <-  mySetAndCalculateUpdate(model, topParamsInter, latents, mvSamplesEst, my_particleFilter, m, topParams, extraTargetVars)
-    my_decideAndJump <-  myDecideAndJump(model, mvSaved, topParamsInter,latentAsScalar, mvSamplesEst)
+    my_setAndCalculate <- setAndCalculate(model, target)
+    my_setAndCalculateUpdate <-  mySetAndCalculateUpdate(model, target, latents, mvSamplesEst, my_particleFilter, m, topParams, extraTargetVars)
+    my_decideAndJump <-  myDecideAndJump(model, mvSaved, target,latentAsScalar, mvSamplesEst, calcNodes, topParams, predictivePars)
     my_calcAdaptationFactor <- calcAdaptationFactor(d, adaptFactorExponent)
-   #if(multiple)
-     my_sampleTopPars <- sampleTopPars(model, mvSaved, topParams, mvSamplesEst, scale, latents)
 
     #set time run = 0
     my_particleFilter$setLastTimeRan(0)
     #my_particleFilter1$setLastTimeRan(0)
     particleMV <- my_particleFilter$mvEWSamples
 
-   # particleMVold <- my_particleFilter$mvEWSamples
-    #pfModelValues <- rep(0, length(model$expandNodeNames(latentAsScalar)))
-    pfModelValues <- rep(0, length(latentAsScalar))
-    targetModelValues <- rep(0, length(topParamsInter))
-    #predVals <- rep(0, length(predictivePars))
-    #topParamsVals <- rep(0, length(topParams))
+    # particleMVold <- my_particleFilter$mvEWSamples
+    pfModelValues <- rep(0, length(model$expandNodeNames(latentAsScalar)))
+    targetModelValues <- rep(0, length(targetAsScalar))
+    predVals <- rep(0, length(predictivePars))
+    topParamsVals <- rep(0, length(topParams))
 
     #predictive nodes
-    #simNodes  <- model$getDependencies(target, downstream = TRUE, includePredictive = TRUE)
-   # calcNodes <- model$getDependencies(target, downstream = TRUE, includePredictive = TRUE, stochOnly = TRUE)
+    simNodes  <- model$getDependencies(target, downstream = TRUE, includePredictive = TRUE)
+    calcNodes <- model$getDependencies(target, downstream = TRUE, includePredictive = TRUE, stochOnly = TRUE)
 
-    ccList1 <- myMcmc_determineCalcAndCopyNodes(model, topParamsInter)
-    copyNodesDeterm1 <- ccList1$copyNodesDeterm; copyNodesStoch1 <- ccList1$copyNodesStoch
+    ccList <- myMcmc_determineCalcAndCopyNodes(model, target)
+    copyNodesDeterm <- ccList$copyNodesDeterm; copyNodesStoch <- ccList$copyNodesStoch
     #pfModelValues <- rep(0, length(latents))
-   # if(extraSave){
-   #   pfModelValuesForExtra <- rep(0, length(calNodesStoch))
-   # }
+    # if(extraSave){
+    #   pfModelValuesForExtra <- rep(0, length(calNodesStoch))
+    # }
 
     #ccList <- myMcmc_determineCalcAndCopyNodes(model, target)
-   # copyNodesDeterm <- ccList$copyNodesDeterm; copyNodesStoch <- ccList$copyNodesStoch
+    # copyNodesDeterm <- ccList$copyNodesDeterm; copyNodesStoch <- ccList$copyNodesStoch
     #pfNewModelValues <- rep(0, length(model$expandNodeNames(latents)))
 
-   # saveOldVars <- modelValues(modelValuesConf(vars = my_particleFilter$mvEWSamples$getVarNames(),
+    # saveOldVars <- modelValues(modelValuesConf(vars = my_particleFilter$mvEWSamples$getVarNames(),
     #                                           types = "double",
     #                                           sizes = length(model$expandNodeNames(latents))))
-   # targetNodesAsScalar <- model$expandNodeNames(target, returnScalarComponents = TRUE)
+    # targetNodesAsScalar <- model$expandNodeNames(target, returnScalarComponents = TRUE)
     #storeModelValues <- values(model, targetNodesAsScalar)
     ## checks
     if(!inherits(propCov, 'matrix'))                    stop('propCov must be a matrix\n')
@@ -451,36 +399,29 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
   },
   run = function() {
     iterRan <<- my_particleFilter$getLastTimeRan()
-
-    # Update top Pars
-    #propValueVectorTopPars <- generateProposalVector(topParams)
-    #MHAR for top Level pars
-  if(multiple) my_sampleTopPars$run(iterRan)
-
-    #MHAR for additional pars
     storeParticleLP <<- my_setAndCalculateUpdate$run(iterRan)
     #store values from reduced model
     pfModelValues <<- values(model, latentAsScalar)
-    targetModelValues <<- values(model, topParamsInter)
+    targetModelValues <<- values(model, targetAsScalar)
     #predVals <<- values(model, predictivePars)
     #topParamsVals <<- values(model, topParams)
 
-    modelLP0 <- storeParticleLP + getLogProb(model, topParamsInter)
+    modelLP0 <- storeParticleLP + getLogProb(model, target)
     propValueVector <- generateProposalVector()
     my_setAndCalculate$run(propValueVector)
     particleLP <- my_particleFilter$run(m = m, iterRun = iterRan, storeModelValues = propValueVector)
-    modelLP1 <- particleLP + getLogProb(model, topParamsInter)
+    modelLP1 <- particleLP + getLogProb(model, target)
     jump <- my_decideAndJump$run(modelLP1, modelLP0, 0, 0, iterRan)#, pfModelValues, predVals, topParamsVals)
 
-   # if(!jump) {
-   #   my_particleFilter$setLastLogLik(storeParticleLP)
-   # }
+    # if(!jump) {
+    #   my_particleFilter$setLastLogLik(storeParticleLP)
+    # }
     if(jump ){#& latentSamp) {
       ## if we jump, randomly sample latent nodes from pf output and put
       ## into model so that they can be monitored
       nimCopy(from = model, to = mvSaved, row = 1, nodes = target, logProb = TRUE)
-      nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesDeterm1, logProb = FALSE)
-      nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesStoch1, logProbOnly = TRUE)
+      nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesDeterm, logProb = FALSE)
+      nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesStoch, logProbOnly = TRUE)
       index <- ceiling(runif(1, 0, m))
       copy(particleMV, model, latents, latents, index)
       calculate(model, latentDep)
@@ -489,13 +430,13 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     else if(!jump ){#& latentSamp) {
       ## if we don't jump, replace model latent nodes with saved latent nodes
       values(model, latentAsScalar) <<- pfModelValues
-      values(model, topParamsInter) <<- targetModelValues
+      values(model, targetAsScalar) <<- targetModelValues
       #nimCopy(from = mvSamplesEst, to = model, row = iterRan, nodes = topParams)
       calculate(model)
-      nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesDeterm1, logProb = FALSE)
-      nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesStoch1, logProbOnly = TRUE)
+      nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesDeterm, logProb = FALSE)
+      nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesStoch, logProbOnly = TRUE)
       nimCopy(from = model, to = mvSaved, row = 1, nodes = target, logProb = TRUE)
-       copy(from = model, to = mvSaved, nodes = latentDep, row = 1, logProb = TRUE)
+      copy(from = model, to = mvSaved, nodes = latentDep, row = 1, logProb = TRUE)
     }
     ##if(jump & !resample)  storeParticleLP <<- particleLP
     if(jump & optimizeM) optimM()
@@ -511,7 +452,7 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
       declare(LLEst, double(1, nVarReps))
       if(nVarEsts < mBurnIn) {  # checks whether we have enough var estimates to get good approximation
         for(i in 1:nVarReps)
-          LLEst[i] <- my_particleFilter$run(m = tempM, iterRun = iterRan, storeModelValues = values(model, topParamsInter))
+          LLEst[i] <- my_particleFilter$run(m = tempM, iterRun = iterRan, storeModelValues = values(model, target))
         ## next, store average of var estimates
         if(nVarEsts == 1)
           storeLLVar <<- var(LLEst)/mBurnIn
@@ -530,7 +471,7 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
       }
     },
     generateProposalVector = function() {
-      propValueVector <- rmnorm_chol(1, values(model,topParamsInter), chol_propCov_scale, 0)  ## last argument specifies prec_param = FALSE
+      propValueVector <- rmnorm_chol(1, values(model,target), chol_propCov_scale, 0)  ## last argument specifies prec_param = FALSE
       returnType(double(1))
       return(propValueVector)
     },
@@ -552,7 +493,7 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
           chol_propCov <<- chol(propCov)
         }
         chol_propCov_scale <<- chol_propCov * scale
-       timesRan <<- 0
+        timesRan <<- 0
         #iterRun <<- 1
         timesAccepted <<- 0
       }
@@ -563,7 +504,7 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
       chol_propCov <<- chol(propCov)
       chol_propCov_scale <<- chol_propCov * scale
       storeParticleLP <<- -Inf
-     timesRan      <<- 1
+      timesRan      <<- 1
       timesAccepted <<- 0
       timesAdapted  <<- 0
       iterRan <<- 0

@@ -165,16 +165,29 @@ findLatentNodes <- function(model, nodes, timeIndex = NULL) {
 
  mySetAndCalculateUpdate <- nimbleFunction(
    name = 'mySetAndCalculateUpdate',
-   setup = function(model, targetNodes, latents, mvSamplesEst, my_particleFilter, m, mvSaved) {# postSamples) {
+   setup = function(model, targetNodes, latents, mvSamplesEst, my_particleFilter, m, topParams, extraTargetVars) {# postSamples) {
      targetNodesAsScalar <- model$expandNodeNames(targetNodes, returnScalarComponents = TRUE)
      calcNodes <- model$getDependencies(targetNodes)
+     latentDep <- model$getDependencies(latents)
      particleMVold <- my_particleFilter$mvEWSamples
    },
-   run = function(iterRan = double(0)) {
+   run = function(iterRan = integer()) {
      index <- ceiling(runif(1, 0, m))
     nimCopy(from = mvSamplesEst, to = model, nodes = targetNodes,row = iterRan)
+
+    #for now, I am simulating the extraPars values, the idea is to use the previous values
+    model$simulate(extraTargetVars)
+    model$calculate()
+    #nimCopy(from = mvSamplesEst, to = model, nodes = calNodesStoch,row = iterRan)
+    #model$simulate(calNodesStoch)
+   # model$calculate()
    lp <-  my_particleFilter$run(m = m, iterRun = iterRan, storeModelValues = values(model, targetNodes))
-   nimCopy(from =  particleMVold, to = model, nodes = latents, row = index, rowTo =1)
+   nimCopy(from =  particleMVold, to = model, latents, latents, row = index)
+   #simulate(model)
+   #calculate(model, latentDep)
+   #nimCopy(from = model, to = mvSaved, nodes = latentDep, row = 1)
+   #calculate(model, c(latentDep, targetNodes))
+   #copy(model, mvSaved)
    #nimCopy(particleMVold, mvSaved, latents, latents, row = index)
      #values(model, targetNodesAsScalar) <<- postSamples[iterRan, targetNodesAsScalar]
      #lp <- model$calculate(calcNodes)
@@ -234,40 +247,28 @@ findLatentNodes <- function(model, nodes, timeIndex = NULL) {
  #' -- Return a logical value, indicating whether the proposal was accepted
  myDecideAndJump <- nimbleFunction(
    name = 'myDecideAndJump',
-   setup = function(model, mvSaved, target, latents, mvSamplesEst, calcNodes) {
+   setup = function(model, mvSaved, target, latentAsScalar, mvSamplesEst) {
      ccList <- myMcmc_determineCalcAndCopyNodes(model, target)
      copyNodesDeterm <- ccList$copyNodesDeterm; copyNodesStoch <- ccList$copyNodesStoch  # not used: calcNodes, calcNodesNoSelf
+     #calNodesStoch <- model$getNodeNames(stochOnly = TRUE, includeData = FALSE)
+     #calNodesStoch <- calNodesStoch[!calNodesStoch %in% model$expandNodeNames(c(target, latents))]
      #extraStoch <- copyNodesStoch[!copyNodesStoch %in% model$expandNodeNames(latents) ]
      #index <- ceiling(runif(1, 0, m))
      },
-   run = function(modelLP1 = double(), modelLP0 = double(), propLP1 = double(), propLP0 = double(), iterRan = double()) {
+   run = function(modelLP1 = double(), modelLP0 = double(), propLP1 = double(), propLP0 = double(), iterRan = integer() ){#, pfModelValues = double(), predVals = double(), topParamsVals = double()) {
      logMHR <- modelLP1 - modelLP0 - propLP1 + propLP0
      jump <- decide(logMHR)
-     if(jump) {
-       nimCopy(from = model, to = mvSaved, row = 1, nodes = target, logProb = TRUE)
-       #values(model, latents) <<- pfNewModelValues
-       #nimCopy(from = model, to = mvSaved, row = 1, nodes = latents, logProb = FALSE)
-       nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesDeterm, logProb = FALSE)
-       nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesStoch, logProbOnly = TRUE)
+     #if(jump) {
 
-       #copy(particleMV, model, latents, latents, index)
-       #calculate(model, latentDep)
-       #copy(from = model, to = mvSaved, nodes = latentDep, row = 1, logProb = TRUE)
-       } else {
-       nimCopy(from = mvSamplesEst, to = model, row = iterRan,  nodes = target)
-         #nimCopy(oldParticleMV, model, latents, latents, index)
-         #calculate(model, latentDep)
-         #nimCopy(from = model, to = mvSaved, nodes = latentDep, row = 1, logProb = TRUE)
-       #values(model, latents) <<- pfModelValues
-       #nimCopy(from = saveOldVars, to = model, row = 1, nodes = latents, logProb = FALSE)
-       #nimCopy(from = mvSaved, to = model, row = 1, nodes = copyNodesDeterm, logProb = FALSE)
-      # nimCopy(from = mvSaved, to = model, row = 1, nodes = copyNodesStoch, logProbOnly = TRUE)
-      #save the old values
-        #nimCopy(from = model, to = mvSaved, row = 1, nodes = target, logProb = TRUE)
-       #nimCopy(from = model, to = mvSaved, row = 1, nodes = latents, logProb = FALSE)
+     #} else {
+       #values(model, latentAsScalar) <<- pfModelValues
+      # values(model, predictivePars) <<- predVals
+       #nimCopy(from = mvSamplesEst, to = model, row = iterRan, nodes = topParams)
+     #  calculate(model)
+      # nimCopy(from = model, to = mvSaved, row = 1, nodes = target, logProb = TRUE)
        #nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesDeterm, logProb = FALSE)
        #nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesStoch, logProbOnly = TRUE)
-     }
+     #}
      returnType(logical())
      return(jump)
    }
@@ -317,6 +318,84 @@ findLatentNodes <- function(model, nodes, timeIndex = NULL) {
    return(ccList)
  }
 
+sampleTopPars <- nimbleFunction(
+   name = 'sampleTopPars',
+   setup = function(model, mvSaved, topParams, mvSamplesEst, scale, latents) {
+     ccList <- myMcmc_determineCalcAndCopyNodes(model, topParams)
+     calcNodes <- ccList$calcNodes
+     copyNodesDeterm <- ccList$copyNodesDeterm; copyNodesStoch <- ccList$copyNodesStoch  # not used: calcNodes, calcNodesNoSelf
+     finalTargetIndex <- max(match(model$expandNodeNames(topParams), calcNodes))
+     if(!is.integer(finalTargetIndex) | length(finalTargetIndex) != 1 | is.na(finalTargetIndex[1]))   stop('problem with target node in RW_block sampler')
+     calcNodesProposalStage <- calcNodes[1:finalTargetIndex]
+     calcNodesDepStage <- calcNodes[-(1:finalTargetIndex)]
+
+     d1 <- length(topParams)
+     propCov1 <- diag(d1)
+     propCovOriginal1 <- propCov1
+     chol_propCov1 <- chol(propCov1)
+     chol_propCov_scale1 <- scale * chol_propCov1
+     my_setAndCalculate <- setAndCalculate(model, topParams)
+
+     #calNodesStoch <- model$getNodeNames(stochOnly = TRUE, includeData = FALSE)
+     #calNodesStoch <- calNodesStoch[!calNodesStoch %in% model$expandNodeNames(c(target, latents))]
+     #extraStoch <- copyNodesStoch[!copyNodesStoch %in% model$expandNodeNames(latents) ]
+     #index <- ceiling(runif(1, 0, m))
+   },
+   run = function(iterRan = integer()){#, pfModelValues = double(), predVals = double(), topParamsVals = double()) {
+     nimCopy(from = mvSamplesEst, to = model, row = iterRan, rowTo = 1, nodes = topParams)
+     nimCopy(from = mvSamplesEst, to = model, row = iterRan, rowTo = 1, nodes = latents, nodesTo = latents)
+     model$calculate()
+     propVector <- generateProposalVector()
+     my_setAndCalculate$run(propVector)
+     #values(model, topParams) <<- propVector
+     lpD <- model$calculateDiff(calcNodesProposalStage)
+
+     if(lpD == -Inf) {
+       jump <- FALSE
+       nimCopy(from = mvSamplesEst, to = model, row = iterRan, rowTo = 1, nodes = topParams)
+       model$calculate()
+       nimCopy(from = model, to = mvSaved,   row = 1, nodes = calcNodesProposalStage, logProb = TRUE)
+     } else {
+       lpD <- lpD + model$calculateDiff(calcNodesDepStage)
+       jump <- decide(lpD)
+       if(jump) {
+         ##model$calculate(calcNodesPPomitted)
+         nimCopy(from = model, to = mvSaved, row = 1, nodes = calcNodesProposalStage, logProb = TRUE)
+         nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesDeterm, logProb = FALSE)
+         nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesStoch, logProbOnly = TRUE)
+       } else {
+         nimCopy(from = mvSamplesEst, to = model, row = iterRan, rowTo = 1, nodes = topParams)
+         model$calculate()
+         nimCopy(from = model, to = mvSaved, row = 1, nodes = calcNodesProposalStage, logProb = TRUE)
+         nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesDeterm, logProb = FALSE)
+         nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesStoch, logProbOnly = TRUE)
+       }
+     }
+
+     #logMHR <- modelLP1 - modelLP0 - propLP1 + propLP0
+     #jump <- decide(logMHR)
+     #if(jump) {
+
+     #} else {
+     #values(model, latentAsScalar) <<- pfModelValues
+     # values(model, predictivePars) <<- predVals
+     #nimCopy(from = mvSamplesEst, to = model, row = iterRan, nodes = topParams)
+     #  calculate(model)
+     # nimCopy(from = model, to = mvSaved, row = 1, nodes = target, logProb = TRUE)
+     #nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesDeterm, logProb = FALSE)
+     #nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesStoch, logProbOnly = TRUE)
+     #}
+     returnType(double())
+     return(lpD)
+   },
+   methods = list(
+     generateProposalVector = function() {
+       propValueVector <- rmnorm_chol(1, values(model,topParams), chol_propCov_scale1, 0)  ## last argument specifies prec_param = FALSE
+       returnType(double(1))
+       return(propValueVector)
+     }
+   )
+ )
 
 
  # mySetAndCalculateUpdate1 <- nimbleFunction(
@@ -325,7 +404,7 @@ findLatentNodes <- function(model, nodes, timeIndex = NULL) {
  #     targetNodesAsScalar <- model$expandNodeNames(targetNodes, returnScalarComponents = TRUE)
  #     calcNodes <- model$getDependencies(targetNodes)
  #   },
- #   run = function(iterRan = double(0)) {
+ #   run = function(iterRan = integer(0)) {
  #     nimCopy(from = mvSamplesEst, to = model, nodes = targetNodes,row = iterRan)
  #     my_particleFilter$run(m = m, iterRun = iterRan, storeModelValues = values(model, targetNodes))
  #     #values(model, targetNodesAsScalar) <<- postSamples[iterRan, targetNodesAsScalar]

@@ -2,7 +2,7 @@
 ##  We have a build function (buildBootstrapFilter),
 ##  and step function.
 bootStepVirtualUpdate <- nimbleFunctionVirtual(
-  run = function(m = integer(),iterRun = integer(), storeModelValues = double(1),threshNum=double(), prevSamp = logical()) {
+  run = function(m = integer(),iterRun = integer(0), storeModelValues = double(1),threshNum=double(), prevSamp = logical()) {
     returnType(double(1))
   },
   methods = list(
@@ -80,7 +80,7 @@ bootFStepUpdate <- nimbleFunction(
       resamplerFunctionList[[1]] <- systematicResampleFunction()
   },
   run = function(m = integer(),
-                 iterRun = integer(),
+                 iterRun = integer(0),
                  storeModelValues = double(1),
                  threshNum = double(),
                  prevSamp = logical()) {
@@ -90,7 +90,7 @@ bootFStepUpdate <- nimbleFunction(
     llEst <- numeric(m, init=FALSE)
     out <- numeric(2, init=FALSE)
 
-    if(t > iNodePrev -1){
+    if(t > iNodePrev ){
       values(model, targetNodesAsScalar) <<- storeModelValues
     for(i in 1:m) {
       if(notFirst) {
@@ -196,9 +196,14 @@ bootFStepUpdate <- nimbleFunction(
         mvWSamples['bootLL',i][currInd] <<-0
 
         wts[i] <- 1
-      }
 
-        out[1] <- 0
+        llEst[i] <- wts[i] - log(m)
+      }
+      maxllEst <- max(llEst)
+      stepllEst <- maxllEst + log(sum(exp(llEst - maxllEst)))
+
+
+        out[1] <- stepllEst
         out[2] <- 0
 
        ess <<- 1/sum(wts^2)
@@ -436,9 +441,9 @@ buildBootstrapFilterUpdate <- nimbleFunction(
     },
     getLastTimeRan = function() {
       return(runTime)
-      returnType(double())
+      returnType(integer(0))
     },
-    setLastTimeRan = function(lll = double()) {
+    setLastTimeRan = function(lll = integer(0)) {
       runTime <<- lll + 1
     },
     returnESS = function(){
