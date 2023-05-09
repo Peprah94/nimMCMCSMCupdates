@@ -63,9 +63,9 @@ baselineSpartaEstimation <- function(model, #nimbleModel
   compiledParticleFilter <- compileNimble(model,  particleFilter)
 
   #Loglikelihood of last run and the Effective sample sizes
-  message("Running the particle filter")
-  logLik <-   compiledParticleFilter$particleFilter$run(m = nParFiltRun)
-  ESS <-   compiledParticleFilter$particleFilter$returnESS()
+  #message("Running the particle filter")
+ # logLik <-   compiledParticleFilter$particleFilter$run(m = nParFiltRun)
+  #ESS <-   compiledParticleFilter$particleFilter$returnESS()
 
   message("Setting up the MCMC Configuration")
   #model <- model$newModel(replicate = TRUE)
@@ -169,6 +169,7 @@ spartaNimWeights <- function(model, #nimbleModel
                                               smoothing = FALSE), #list of controls for particle filter
                              nParFiltRun = NULL, #Number of PF runs
                              latent, #the latent variable
+                             block = FALSE
                              mcmc = TRUE # logical if MCMC was used or not
 ){
 
@@ -185,9 +186,18 @@ spartaNimWeights <- function(model, #nimbleModel
 
   if(mcmc == TRUE){
     nMCompile <- compileNimble(model)
+
+
     #
-    target <- c(target, additionalPars)
-    cMCMC <- configureMCMC(model, monitors = c(target, latent))
+    #target <- c(target, additionalPars)
+    cMCMC <- configureMCMC(model, monitors = c(target, latent, additionalPars))
+
+    if(block == TRUE){
+      cMCMC$removeSampler(target)
+      cMCMC$addSampler(target, type = "RW_block")
+    }else{
+      cMCMC = cMCMC
+    }
     #
     bMCMC <- buildMCMC(cMCMC)
     #
@@ -212,7 +222,7 @@ spartaNimWeights <- function(model, #nimbleModel
 
 #Model values for the weighted samples
   }else{
-  if(is.null(nParFiltRun)) nParFiltRun = 10000
+  if(is.null(nParFiltRun)) nParFiltRun = 1000
 
   #create new model for weights
   estimationModel <- model$newModel(replicate = TRUE)
@@ -462,7 +472,7 @@ spartaNimUpdates <- function(model, #nimbleModel
   timeIndex <- pfControl[["timeIndex"]]
   #iNodePrev = updatePFControl[["iNodePrev"]]
   #M = updatePFControl[["M"]]
-  if(is.null(nParFiltRun)) nParFiltRun = 10000
+  if(is.null(nParFiltRun)) nParFiltRun = 1000
   if(is.null(timeIndex)) timeIndex = 1
 
   samplesList  <- vector('list', n.chains)
@@ -571,8 +581,8 @@ if(pfType == "bootstrap"){
                            control = list(latents = latent,
                                           #target = target,
                                           adaptive = FALSE,
-                                          adaptInterval = 100,
-                                          scale = 1,
+                                          #adaptInterval = 100,
+                                          #scale = 1,
                                          # pf = particleFilter,
                                           pfControl = pfControl, #list( M = M, iNodePrev = iNodePrev),
                                           pfNparticles = nParFiltRun,

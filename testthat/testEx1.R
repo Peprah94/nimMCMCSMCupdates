@@ -11,14 +11,14 @@ pfTypeRun = "bootstrap"
 #load("reducedCase2.RData")
 
 # Setting up MCMC configuration values and variation of parameters
-nIterations = 50000
-nBurnin = 20000
+nIterations = 5000
+nBurnin = 2000
 nChains = 2
 nThin = 5
 nyears = 50
-aVars <- c(0.1, 0.8) # changing the intercept
+aVars <- c(0.1, 0.5) # changing the intercept
 #High and small values of a
-iNodePrev <- 25  # The number of years for reduced model
+iNodePrev <- 49  # The number of years for reduced model
 
 aVarstag = 2
 #for(aVarstag in 1:length(aVars)){
@@ -39,9 +39,9 @@ sim2 <- function(a, b, c, t, mu0){
 message("simulating data for a = ", aVars[aVarstag])
 simData <- sim2(a = aVars[aVarstag],
                 b = 1,
-                c = 1.5,
+                c = 1,
                 t = nyears,
-                mu0 = 0.2)
+                mu0 = 1)
 
 #save data
 #save(simData, file = paste0("example1SimData",aVarstag,".RData"))
@@ -59,7 +59,7 @@ stateSpaceCode <- nimbleCode({
   }
   a ~ dnorm(0, 1)
   b ~ dnorm(0, 1)
-  c ~ dnorm(0,1)
+  c ~ dnorm(1,1)
   mu0 ~ dnorm(0, 1)
 })
 #
