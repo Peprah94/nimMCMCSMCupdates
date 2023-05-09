@@ -3,7 +3,7 @@ library('nimble')
 library(nimbleSMC)
 devtools::load_all(".")
 set.seed(1)
-mcmcRun <- TRUE #use mcmc or nimbleSMC for reduced Model
+mcmcRun <- FALSE #use mcmc or nimbleSMC for reduced Model
 pfTypeRun = "bootstrap"
 #source("spartaUpdatingFunctions.R")
 #source("~/Documents/GitHub/myphdthesis/R/MCMCSamplersUpdate.R")
@@ -18,7 +18,7 @@ nThin = 5
 nyears = 50
 aVars <- c(0.1, 0.8) # changing the intercept
 #High and small values of a
-iNodePrev <- 2  # The number of years for reduced model
+iNodePrev <- 49  # The number of years for reduced model
 
 aVarstag = 2
 #for(aVarstag in 1:length(aVars)){
@@ -31,7 +31,7 @@ sim2 <- function(a, b, c, t, mu0){
 
   for(k in 2:t){
     x[k] <- rnorm(1, a*x[k -1] + b, 1)
-    y[k] <- rnorm(1, x[k-1]*c, 1)# + (sigOE * (sqrt(df -2)/df) * rt(1, df))
+    y[k] <- rnorm(1, x[k]*c, 1)# + (sigOE * (sqrt(df -2)/df) * rt(1, df))
   }
   return(list(x=x, y=y))
 }

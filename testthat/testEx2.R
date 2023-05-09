@@ -8,8 +8,8 @@ nimbleOptions(MCMCusePredictiveDependenciesInCalculations = TRUE)
 nimbleOptions(MCMCorderPosteriorPredictiveSamplersLast = FALSE)
 #library(myphdthesis)
 nyears = 10
-nsites = 50
-nvisits = 6
+nsites = 5
+nvisits = 3
 iNodePrev = 7
 pfTypeRun = "auxiliary"
 
@@ -17,7 +17,7 @@ nIterations = 5000
 nBurnin = 2000
 nChains = 2
 nThin = 1
-numParticles = 10000
+numParticles = 10
 
 dynOccupancyModels <- function(nyears,
                                nsites,
@@ -130,8 +130,8 @@ dynOccupancyModels <- function(nyears,
 # Simulating data
 
 simData <- dynOccupancyModels(nyears = 10,
-                               nsites = 50,
-                              nvisits = 6)
+                               nsites = 5,
+                              nvisits = 3)
  #save(simData, file = "simDataDynamicOccupancy.RData")
 
 #load("simDataDynamicOccupancy.RData")

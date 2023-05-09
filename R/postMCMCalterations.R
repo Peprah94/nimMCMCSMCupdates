@@ -416,8 +416,9 @@ efficiencyRet <- lapply(seq_along(models), function(i){
                                   y = efficiency,
                                   group = model,
                                   col = as.factor(model)))+
-    geom_point()+
-    geom_line(aes(linetype = as.factor(model)))+
+    geom_point(position = position_dodge(width = 0.1),
+               aes(shape = as.factor(model)))+
+    #geom_line(aes(linetype = as.factor(model)))+
     theme_bw()+
     ylab("Efficiency = ESS/Run time")
   }else(
@@ -428,8 +429,9 @@ efficiencyRet <- lapply(seq_along(models), function(i){
                                     y = efficiency,
                                     group = model,
                                     col = as.factor(model)))+
-      geom_point()+
-      geom_line(linetype = line_type)+
+      geom_point(position = position_dodge(width = 0.1),
+                 aes(shape = as.factor(model)))+
+      #geom_line(linetype = line_type)+
       theme_bw()+
       ylab("Efficiency = ESS/Run time")
   )
@@ -442,10 +444,13 @@ efficiencyRet <- lapply(seq_along(models), function(i){
                                   y = Effective,
                                   group = model,
                                   col = as.factor(model)))+
-    geom_point()+
-    geom_line(aes(linetype = as.factor(model)))+
+    geom_point(position = position_dodge(width = 0.1),
+               aes(shape = as.factor(model)))+
+    #geom_line(aes(linetype = as.factor(model)))+
     theme_bw()+
-    ylab("Effective Sample Size (ESS)")
+    ylab("ESS")+
+    labs(color = "")+
+    labs(shape = "")
 
   mcsePlot <- efficiencyRet%>%
     do.call("rbind", .)%>%
@@ -454,10 +459,14 @@ efficiencyRet <- lapply(seq_along(models), function(i){
                                   y = mcse,
                                   group = model,
                                   col = as.factor(model)))+
-    geom_point()+
-    geom_line(aes(linetype = as.factor(model)))+
+    geom_point(position = position_dodge(width = 0.1),
+               aes(shape = as.factor(model)))+
+    #geom_line(aes(linetype = as.factor(model)))+
     theme_bw()+
-    ylab("Monte Carlo standard error (MCSE)")
+    #ylab("Monte Carlo standard error (MCSE)")
+    ylab("MCSE")+
+    labs(color = "")+
+    labs(shape = "")
 
   #traceplot plot
   traceplotRet <- lapply(seq_along(models), function(i){
@@ -466,7 +475,8 @@ efficiencyRet <- lapply(seq_along(models), function(i){
       dplyr::filter(Parameter %in% nodes)%>%
       ggs_traceplot()+
       facet_wrap( ~ Parameter, nrow = ceiling(length(nodes)/4), ncol = 4, scales = "free_y")+
-      ggtitle(paste("Model ", i))+
+     # ggtitle(paste("Model ", i))+
+      ggtitle(modelNames[i])+
       theme_bw()
   })%>%
     ggpubr::ggarrange(plotlist = .,
@@ -528,6 +538,9 @@ compareModelsMeanPlots <- function(models = list(),
                                modelNames = NULL,
                                fullModel = stateSpaceModel,
                                nodes = c(), #parameterisations for mcse.mat
+                               updated = FALSE,
+                               trueData,
+                               tr = NULL,
                                metrics = list(mean= TRUE,
                                               se = TRUE,
                                               confint = TRUE)){
@@ -544,70 +557,143 @@ compareModelsMeanPlots <- function(models = list(),
  if(is.null(modelNames)) modelNames <- paste("Model", 1: length(models))
 
  nodeNames <- fullModel$expandNodeNames(nodes)
+
+ expandedNodes <- length(nodeNames) == length(nodes)
+ truth <- data.frame(Parameters = nodeNames,
+                     mean = trueData,
+                     model = "truth",
+                     row = seq(1:length(nodeNames)))
+
 # Mean plot
  meanPlot <- lapply(seq_along(allData), function(i){
    x <- allData[[i]]
   #lengthNodes <- length(sapply(nodes, function(r){rownames(x)[grepl(r, rownames(x))]}))
   #nodeNames <- as.vector(sapply(nodes, function(r){c(rownames(x)[grepl(r, rownames(x))])}))
+ #true values
+
 
    lengthNodes <- sum(rownames(x) %in% nodeNames)
+
+  if(updated[i] == TRUE){
+    updatedParNames <- nodeNames[tr[[i]]:length(nodeNames)]
+  }else{
+    updatedParNames <- rownames(x)[rownames(x) %in% nodeNames]
+  }
 
   output <-  x[rownames(x)[rownames(x) %in% nodeNames],"Mean"]%>%
   #outputDF <- data.frame(Parameters = names(grepl(nodes, rownames(x))),
                          #output = output)
    # t()%>%
     data.frame()%>%
-     dplyr::mutate(Parameters = rownames(x)[rownames(x) %in% nodeNames],
+     dplyr::mutate(Parameters = updatedParNames,
                    model = rep(modelNames[i], lengthNodes),
                    row = row_number())%>%
      dplyr::full_join(data.frame(Parameters = fullModel$expandNodeNames(nodes),
                                  model = rep(modelNames[i], length(fullModel$expandNodeNames(nodes)))),
                       by = c("Parameters", "model"))
+
+  if(!expandedNodes) output$Parameters <- factor(output$Parameters,
+                              levels =   paste0(nodes,"[", sort(as.numeric(gsub("\\D", "", output$Parameters))), "]"))
+
+    #dplyr::mutate(Parameters = stringr::str_sort(Parameters, numeric = TRUE))%>%
+    #dplyr::mutate(Parameters = factor(Parameters, levels = row))
   colnames(output)[1] <- "mean"
   return(output)
  })%>%
    do.call("rbind", .)%>%
-   ggplot(., mapping = aes(x = reorder(as.factor(Parameters), row), y = mean, col = model, group = model))+
-   geom_point()+
+   rbind(., truth)%>%
+   #ggplot(., mapping = aes(x = reorder(as.factor(Parameters), row), y = mean, col = model, group = model))+
+   ggplot(data = ., mapping = aes(x = Parameters, y = mean, col = model, group = model))+
+   geom_point(aes(shape = model))+
    geom_line()+
+   scale_color_brewer(palette = "Paired")+
+   #geom_point(data = truth, mapping = aes(x = Parameters, y = mean))+
+  # geom_line(data = truth, mapping = aes(x = Parameters, y = mean))+
    theme_bw()+
    xlab("Parameters")+
    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
-         legend.position = "bottom")
+         legend.position = "bottom")+
+   labs(color = "")+
+   labs(shape = "")
 
  # Mean plus/minus standard deviation
- sePlot <- lapply(seq_along(allData), function(i){
+ # True values
+ truth <- data.frame(Parameters = nodeNames,
+                     mean = trueData,
+                     se = NA,
+                     model = "truth",
+                     row = seq(1:length(nodeNames)))
+
+ sePlotData <- lapply(seq_along(allData), function(i){
    x <- allData[[i]]
    #lengthNodes <- length(sapply(nodes, function(r){rownames(x)[grepl(r, rownames(x))]}))
    #nodeNames <- as.vector(sapply(nodes, function(r){c(rownames(x)[grepl(r, rownames(x))])}))
-
    lengthNodes <- sum(rownames(x) %in% nodeNames)
+
+   if(updated[i] == TRUE){
+     updatedParNames <- nodeNames[tr[[i]]:length(nodeNames)]
+   }else{
+     updatedParNames <- rownames(x)[rownames(x) %in% nodeNames]
+   }
 
    output <-  x[rownames(x)[rownames(x) %in% nodeNames],c(1,3)]%>%
      #outputDF <- data.frame(Parameters = names(grepl(nodes, rownames(x))),
      #output = output)
      # t()%>%
      data.frame()%>%
-     dplyr::mutate(Parameters = rownames(x)[rownames(x) %in% nodeNames],
+     dplyr::mutate(Parameters = updatedParNames,
                    model = rep(modelNames[i], lengthNodes),
                    row = row_number())%>%
      dplyr::full_join(data.frame(Parameters = fullModel$expandNodeNames(nodes),
                                  model = rep(modelNames[i], length(fullModel$expandNodeNames(nodes)))),
                       by = c("Parameters", "model"))
+
+   if(!expandedNodes) output$Parameters <- factor(output$Parameters,
+                                                  levels =   paste0(nodes,"[", sort(as.numeric(gsub("\\D", "", output$Parameters))), "]"))
+
    colnames(output)[1:2] <- c("mean", "se")
    return(output)
  })%>%
    do.call("rbind", .)%>%
-   ggplot(., mapping = aes(x = reorder(as.factor(Parameters), row), y = mean, col = model, group = model))+
-   geom_point()+
+   rbind(., truth)
+
+ if(!expandedNodes){
+   sePlot  <- ggplot(sePlotData , mapping = aes(x = Parameters, y = mean, col = model, group = model))+
+   geom_point(aes(col = model))+
    geom_line()+
    geom_ribbon(aes(ymin = mean - se, ymax = mean + se, fill = model), alpha = 0.1) +
+   scale_color_brewer(palette = "Paired")+
    theme_bw()+
    xlab("Parameters")+
    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
-         legend.position = "bottom")
+         legend.position = "bottom")+
+     labs(color = "")+
+     labs(shape = "")
+ }else{
+   sePlot  <-  ggplot(sePlotData , mapping = aes(x = Parameters, y = mean, col = model, group = model))+
+     geom_point(aes(col = model), position = position_dodge(width = 0.5))+
+     #geom_line()+
+     geom_errorbar(aes(ymin = mean - se, ymax = mean + se, col = model),
+                   position = position_dodge(width = 0.5),
+                   width = 0.05,
+                   size = 1) +
+     #scale_color_brewer(palette = "Paired")+
+     theme_bw()+
+     xlab("Parameters")+
+     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+           legend.position = "bottom")+
+     labs(color = "")+
+     labs(shape = "")
+ }
 
 # Mean with credible interval
+ truth <- data.frame(Parameters = nodeNames,
+                     mean = trueData,
+                     lower = NA,
+                     upper = NA,
+                     model = "truth",
+                     row = seq(1:length(nodeNames)))
+
  confintPlot <- lapply(seq_along(allData), function(i){
    x <- allData[[i]]
    #lengthNodes <- length(sapply(nodes, function(r){rownames(x)[grepl(r, rownames(x))]}))
@@ -615,29 +701,43 @@ compareModelsMeanPlots <- function(models = list(),
 
    lengthNodes <- sum(rownames(x) %in% nodeNames)
 
+   if(updated[i] == TRUE){
+     updatedParNames <- nodeNames[tr[[i]]:length(nodeNames)]
+   }else{
+     updatedParNames <- rownames(x)[rownames(x) %in% nodeNames]
+   }
+
    output <-  x[rownames(x)[rownames(x) %in% nodeNames],c(1,4,5)]%>%
      #outputDF <- data.frame(Parameters = names(grepl(nodes, rownames(x))),
      #output = output)
      # t()%>%
      data.frame()%>%
-     dplyr::mutate(Parameters = rownames(x)[rownames(x) %in% nodeNames],
+     dplyr::mutate(Parameters = updatedParNames,
                    model = rep(modelNames[i], lengthNodes),
                    row = row_number())%>%
      dplyr::full_join(data.frame(Parameters = fullModel$expandNodeNames(nodes),
                                  model = rep(modelNames[i], length(fullModel$expandNodeNames(nodes)))),
                       by = c("Parameters", "model"))
+
+   if(!expandedNodes) output$Parameters <- factor(output$Parameters,
+                                                  levels =   paste0(nodes,"[", sort(as.numeric(gsub("\\D", "", output$Parameters))), "]"))
+
    colnames(output)[1:3] <- c("mean", "lower", "upper")
    return(output)
  })%>%
    do.call("rbind", .)%>%
-   ggplot(., mapping = aes(x = reorder(as.factor(Parameters), row), y = mean, col = model, group = model))+
-   geom_point()+
+   rbind(., truth)%>%
+   ggplot(., mapping = aes(x = Parameters, y = mean, col = model, group = model))+
+   geom_point(aes(shape = model))+
    geom_line()+
    geom_ribbon(aes(ymin = lower, ymax = upper, fill = model), alpha = 0.1) +
    theme_bw()+
+   scale_color_brewer(palette = "Paired")+
    xlab("Parameters")+
    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
-         legend.position = "bottom")
+         legend.position = "bottom")+
+   labs(color = "")+
+   labs(shape = "")
 
 
 
