@@ -18,7 +18,7 @@ nThin = 5
 nyears = 50
 aVars <- c(0.1, 0.8) # changing the intercept
 #High and small values of a
-iNodePrev <- 49  # The number of years for reduced model
+iNodePrev <- 25  # The number of years for reduced model
 
 aVarstag = 2
 #for(aVarstag in 1:length(aVars)){
