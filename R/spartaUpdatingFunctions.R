@@ -169,7 +169,7 @@ spartaNimWeights <- function(model, #nimbleModel
                                               smoothing = FALSE), #list of controls for particle filter
                              nParFiltRun = NULL, #Number of PF runs
                              latent, #the latent variable
-                             block = FALSE
+                             block = FALSE,
                              mcmc = TRUE # logical if MCMC was used or not
 ){
 

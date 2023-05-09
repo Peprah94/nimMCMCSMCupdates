@@ -233,18 +233,21 @@ auxFStepUpdate <- nimbleFunction(
     return(outLL)
      }else{
 # for t < iNodePrev
-       nimCopy(from = mvSamplesEst, to = model, nodes = target,row = iterRun)
-     if(notFirst) {
-         model$calculate(prevDeterm)
-       }
+
+
 
        for(i in 1:m) {
              nimCopy(mvSamplesEst, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
              nimCopy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
            wts[i] <- 1
+      # }
+           nimCopy(from = mvSamplesEst, to = model, nodes = target,row = iterRun)
+
+       if(notFirst) {
+         model$calculate(prevDeterm)
        }
 
-       for(i in 1:m){
+      #for(i in 1:m){
          ## Save weights for use in next timepoint's look-ahead step.
          mvWSamples['wts', i][currInd] <<- 1
        }
