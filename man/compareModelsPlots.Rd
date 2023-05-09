@@ -8,7 +8,9 @@ compareModelsPlots(
   models = list(),
   modelNames = NULL,
   n.chains = NULL,
+  line_type = NULL,
   nodes = c(),
+  bacthSize = 500,
   method = "bm",
   metrics = list(ESS = TRUE, efficiency = TRUE, MCse = TRUE, traceplot = TRUE, density
     = TRUE)

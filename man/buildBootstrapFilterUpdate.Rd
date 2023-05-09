@@ -7,10 +7,6 @@
 buildBootstrapFilterUpdate(
   model,
   nodes,
-  mvWSamplesWTSaved,
-  mvWSamplesXSaved,
-  mvEWSamplesXSaved,
-  logLikeVals,
   mvSamplesEst = list(),
   target,
   control = list()

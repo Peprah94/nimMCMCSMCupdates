@@ -9,6 +9,9 @@ compareModelsMeanPlots(
   modelNames = NULL,
   fullModel = stateSpaceModel,
   nodes = c(),
+  updated = FALSE,
+  trueData,
+  tr = NULL,
   metrics = list(mean = TRUE, se = TRUE, confint = TRUE)
 )
 }

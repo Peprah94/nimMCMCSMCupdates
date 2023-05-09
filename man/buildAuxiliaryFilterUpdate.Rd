@@ -7,10 +7,6 @@
 buildAuxiliaryFilterUpdate(
   model,
   nodes,
-  mvWSamplesWTSaved,
-  mvWSamplesXSaved,
-  mvEWSamplesXSaved,
-  logLikeVals,
   mvSamplesEst,
   target,
   control = list()

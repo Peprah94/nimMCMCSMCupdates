@@ -2,27 +2,15 @@
 % Please edit documentation in R/MCMCSamplersUpdate.R
 \name{SMCsamplers}
 \alias{SMCsamplers}
-\alias{sampler_RW_PFUpdate}
+\alias{sampler_RW_PF_blockUpdate}
 \alias{samplers}
 \alias{sampler}
 \alias{RW_PF}
 \alias{RW_PF_block}
 \alias{sampler_RW_PF}
 \alias{sampler_RW_PF_block}
-\alias{sampler_RW_PF_blockUpdate}
 \title{Particle Filtering MCMC Sampling Algorithms}
 \usage{
-sampler_RW_PFUpdate(
-  model,
-  mvSaved,
-  target,
-  mvWSamplesWTSaved,
-  mvWSamplesXSaved,
-  mvEWSamplesXSaved,
-  logLikeVals,
-  control
-)
-
 sampler_RW_PF_blockUpdate(model, mvSaved, target, control)
 }
 \arguments{
