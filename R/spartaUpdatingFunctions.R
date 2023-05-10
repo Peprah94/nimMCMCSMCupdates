@@ -18,7 +18,7 @@ baselineSpartaEstimation <- function(model, #nimbleModel
   n.chains = MCMCconfiguration[["n.chains"]]
   n.burnin = MCMCconfiguration[["n.burnin"]]
   n.thin = MCMCconfiguration[["n.thin"]]
-  if(is.null(nParFiltRun)) nParFiltRun = 1000
+  if(is.null(nParFiltRun)) nParFiltRun = 5000
 
   #create new model for weights
   estimationModel <- model$newModel(replicate = TRUE)
@@ -222,7 +222,7 @@ spartaNimWeights <- function(model, #nimbleModel
 
 #Model values for the weighted samples
   }else{
-  if(is.null(nParFiltRun)) nParFiltRun = 1000
+  if(is.null(nParFiltRun)) nParFiltRun = 5000
 
   #create new model for weights
   estimationModel <- model$newModel(replicate = TRUE)
@@ -472,7 +472,7 @@ spartaNimUpdates <- function(model, #nimbleModel
   timeIndex <- pfControl[["timeIndex"]]
   #iNodePrev = updatePFControl[["iNodePrev"]]
   #M = updatePFControl[["M"]]
-  if(is.null(nParFiltRun)) nParFiltRun = 1000
+  if(is.null(nParFiltRun)) nParFiltRun = 5000
   if(is.null(timeIndex)) timeIndex = 1
 
   samplesList  <- vector('list', n.chains)

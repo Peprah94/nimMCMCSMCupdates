@@ -191,7 +191,7 @@ if(is.null(modelNames)) modelNames = paste("Model", 1:modelsLength)
   ##################
   # Times run
   ##################
-  timesRet <-  lapply(models, function(x){
+if(timeRun)  timesRet <-  lapply(models, function(x){
       nDim <- length(x$timeRun)
       if(nDim == 1){
         as.numeric(x$timeRun, units = "secs")
@@ -203,7 +203,7 @@ if(is.null(modelNames)) modelNames = paste("Model", 1:modelsLength)
   ####################
   # estimate Monte Carlo Standard error
   ##################
-MCseRet <- lapply(seq_along(models), function(i){
+if(MCse) {MCseRet <- lapply(seq_along(models), function(i){
     x <- models[[i]]
     nDim <- length(x$samples[[1]])
     if(nDim >2 ){
@@ -239,11 +239,11 @@ MCseRet <- lapply(seq_along(models), function(i){
     return(ret)
   })
 names(MCseRet) <- modelNames
-
+}
   #############
   # Effective sample Size
   ##############
-    ESSret <- lapply(models, function(x) {ggmcmc::ggs_effective(ggs(x$samples),
+ if(ESS)   ESSret <- lapply(models, function(x) {ggmcmc::ggs_effective(ggs(x$samples),
                         proportion = FALSE,
                         plot =  FALSE)%>%
    dplyr::filter(Parameter %in% nodes)
@@ -252,14 +252,14 @@ names(MCseRet) <- modelNames
   #############
   # Efficiency
   ##############
-  efficiencyRet <- lapply(seq_along(models), function(i){
+ if(efficiency) {efficiencyRet <- lapply(seq_along(models), function(i){
     ESSret[[i]]%>%
       dplyr::mutate(timeRan = as.numeric(timesRet[i]),
                     efficiency = Effective/ as.numeric(timesRet[i]),
                     mcse = MCseRet[[i]]$all.chains)
   })
   names(efficiencyRet) <- modelNames
-
+}
   # Results to return
 retlist <- list()
 if(efficiency) retlist$efficiency <- efficiencyRet
@@ -421,6 +421,8 @@ efficiencyRet <- lapply(seq_along(models), function(i){
     #geom_line(aes(linetype = as.factor(model)))+
     theme_bw()+
     xlab("")+
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+          legend.position = "bottom")+
     #ylab("Efficiency = ESS/Run time")
     ylab("")
   }else(
@@ -435,6 +437,8 @@ efficiencyRet <- lapply(seq_along(models), function(i){
                  aes(shape = as.factor(model)))+
       #geom_line(linetype = line_type)+
       theme_bw()+
+      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+            legend.position = "bottom")+
       #ylab("Efficiency = ESS/Run time")
       xlab("")+
       ylab("")
@@ -455,6 +459,8 @@ efficiencyRet <- lapply(seq_along(models), function(i){
     #ylab("ESS")+
     ylab("")+
     xlab("")+
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+          legend.position = "bottom")+
     labs(color = "")+
     labs(shape = "")
 
@@ -473,6 +479,8 @@ efficiencyRet <- lapply(seq_along(models), function(i){
     #ylab("MCSE")+
     ylab("")+
     xlab("")+
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+          legend.position = "bottom")+
     labs(color = "")+
     labs(shape = "")
 
@@ -670,7 +678,7 @@ compareModelsMeanPlots <- function(models = list(),
    geom_point(aes(col = model))+
    geom_line()+
    geom_errorbar(aes(ymin = mean - se, ymax = mean + se, col = model),
-                 position = position_dodge(width = 0.3)) +
+                 position = position_dodge(width = 0.9)) +
    scale_color_brewer(palette = "Paired")+
    theme_bw()+
    xlab("")+
@@ -685,9 +693,10 @@ compareModelsMeanPlots <- function(models = list(),
      geom_point(aes(col = model), position = position_dodge(width = 0.5))+
      #geom_line()+
      geom_errorbar(aes(ymin = mean - se, ymax = mean + se, col = model),
-                   position = position_dodge(width = 0.5),
-                   width = 0.05,
-                   size = 1) +
+                   position = position_dodge(width = 0.9)#,
+                   #width = 0.05,
+                  # size = 1
+                   ) +
      #scale_color_brewer(palette = "Paired")+
      theme_bw()+
      xlab("")+
