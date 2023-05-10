@@ -18,7 +18,7 @@ baselineSpartaEstimation <- function(model, #nimbleModel
   n.chains = MCMCconfiguration[["n.chains"]]
   n.burnin = MCMCconfiguration[["n.burnin"]]
   n.thin = MCMCconfiguration[["n.thin"]]
-  if(is.null(nParFiltRun)) nParFiltRun = 10000
+  if(is.null(nParFiltRun)) nParFiltRun = 1000
 
   #create new model for weights
   estimationModel <- model$newModel(replicate = TRUE)
@@ -64,8 +64,8 @@ baselineSpartaEstimation <- function(model, #nimbleModel
 
   #Loglikelihood of last run and the Effective sample sizes
   #message("Running the particle filter")
- # logLik <-   compiledParticleFilter$particleFilter$run(m = nParFiltRun)
-  #ESS <-   compiledParticleFilter$particleFilter$returnESS()
+  #logLik <-   compiledParticleFilter$particleFilter$run(m = nParFiltRun)
+ # ESS <-   compiledParticleFilter$particleFilter$returnESS()
 
   message("Setting up the MCMC Configuration")
   #model <- model$newModel(replicate = TRUE)

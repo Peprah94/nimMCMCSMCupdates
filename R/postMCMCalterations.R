@@ -52,9 +52,9 @@ compareModelsPars <- function(models = list(),
   if(timeRun) timesRet <- lapply(models, function(x){
     nDim <- length(x$timeRun)
     if(nDim == 1){
-      x$timeRun
+      as.numeric(x$timeRun, units = "secs")
     }else{
-      x$timeRun$all.chains
+      as.numeric(x$timeRun$all.chains, units = "secs")
     }
   })%>%
     do.call('c', .)
@@ -191,15 +191,15 @@ if(is.null(modelNames)) modelNames = paste("Model", 1:modelsLength)
   ##################
   # Times run
   ##################
-  timesRet <- lapply(models, function(x){
-    nDim <- length(x$timeRun)
-    if(nDim == 1){
-      x$timeRun
-    }else{
-      x$timeRun$all.chains
-    }
-  })%>%
-    do.call('c', .)
+  timesRet <-  lapply(models, function(x){
+      nDim <- length(x$timeRun)
+      if(nDim == 1){
+        as.numeric(x$timeRun, units = "secs")
+      }else{
+        as.numeric(x$timeRun$all.chains, units = "secs")
+      }
+    })%>%
+      do.call('c', .)
   ####################
   # estimate Monte Carlo Standard error
   ##################
@@ -420,7 +420,9 @@ efficiencyRet <- lapply(seq_along(models), function(i){
                aes(shape = as.factor(model)))+
     #geom_line(aes(linetype = as.factor(model)))+
     theme_bw()+
-    ylab("Efficiency = ESS/Run time")
+    xlab("")+
+    #ylab("Efficiency = ESS/Run time")
+    ylab("")
   }else(
     efficiencyPlot <- efficiencyRet%>%
       do.call("rbind", .)%>%
@@ -433,7 +435,9 @@ efficiencyRet <- lapply(seq_along(models), function(i){
                  aes(shape = as.factor(model)))+
       #geom_line(linetype = line_type)+
       theme_bw()+
-      ylab("Efficiency = ESS/Run time")
+      #ylab("Efficiency = ESS/Run time")
+      xlab("")+
+      ylab("")
   )
 
   #effective sample size plot
@@ -448,7 +452,9 @@ efficiencyRet <- lapply(seq_along(models), function(i){
                aes(shape = as.factor(model)))+
     #geom_line(aes(linetype = as.factor(model)))+
     theme_bw()+
-    ylab("ESS")+
+    #ylab("ESS")+
+    ylab("")+
+    xlab("")+
     labs(color = "")+
     labs(shape = "")
 
@@ -464,7 +470,9 @@ efficiencyRet <- lapply(seq_along(models), function(i){
     #geom_line(aes(linetype = as.factor(model)))+
     theme_bw()+
     #ylab("Monte Carlo standard error (MCSE)")
-    ylab("MCSE")+
+    #ylab("MCSE")+
+    ylab("")+
+    xlab("")+
     labs(color = "")+
     labs(shape = "")
 
@@ -489,8 +497,8 @@ efficiencyRet <- lapply(seq_along(models), function(i){
     ggmcmc::ggs(x$samples)%>%
       dplyr::filter(Parameter %in% nodes)%>%
       ggs_density()+
-      ggtitle(paste("Model ", i))+
       facet_wrap( ~ Parameter, nrow = ceiling(length(nodes)/4), ncol = 4, scales = "free_y")+
+      ggtitle(modelNames[i])+
       theme_bw()
   })%>%
     ggpubr::ggarrange(plotlist = .,
@@ -661,14 +669,17 @@ compareModelsMeanPlots <- function(models = list(),
    sePlot  <- ggplot(sePlotData , mapping = aes(x = Parameters, y = mean, col = model, group = model))+
    geom_point(aes(col = model))+
    geom_line()+
-   geom_ribbon(aes(ymin = mean - se, ymax = mean + se, fill = model), alpha = 0.1) +
+   geom_errorbar(aes(ymin = mean - se, ymax = mean + se, col = model),
+                 position = position_dodge(width = 0.3)) +
    scale_color_brewer(palette = "Paired")+
    theme_bw()+
-   xlab("Parameters")+
+   xlab("")+
+     ylab("")+
    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
          legend.position = "bottom")+
      labs(color = "")+
-     labs(shape = "")
+     labs(shape = "")#+
+     #ylim(c(-20,20))
  }else{
    sePlot  <-  ggplot(sePlotData , mapping = aes(x = Parameters, y = mean, col = model, group = model))+
      geom_point(aes(col = model), position = position_dodge(width = 0.5))+
@@ -679,7 +690,8 @@ compareModelsMeanPlots <- function(models = list(),
                    size = 1) +
      #scale_color_brewer(palette = "Paired")+
      theme_bw()+
-     xlab("Parameters")+
+     xlab("")+
+     ylab("")+
      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
            legend.position = "bottom")+
      labs(color = "")+
