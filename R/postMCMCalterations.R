@@ -64,26 +64,24 @@ compareModelsPars <- function(models = list(),
   ##########################
 
   if(ESS) ESSret <- lapply(models, function(x){
-    nDim <- length(x$samples[[1]])
-    if(nDim > 2){
-      ret <- lapply(as.list(1:n.chains), function(y){mcmcse::multiESS(as.matrix(x$samples),
-                                                                      method = method,
-                                                                      r = 1,
+    #nDim <- length(x$samples[[1]])
+    #if(nDim > 2){
+      ret <- mcmcse::multiESS(as.matrix(x$samples),
+                               method = method,
+                       r = 1,
                        size = NULL, g = NULL, adjust = TRUE,
-                       blather = TRUE)})%>%
-        do.call('c', .)%>%
-        mean(.)
-    }else{
-      ret <- lapply(as.list(1:n.chains), function(y){mcmcse::multiESS(as.matrix(x$samples[[y]][[2]]),
-                                                                      method = method,
-                                                                      r = 1,
-                                                               size = NULL,
-                                                               g = NULL,
-                                                               adjust = TRUE,
-                                                               blather = TRUE)})%>%
-        do.call('c', .)%>%
-        mean(.)
-    }
+                       blather = TRUE)
+    # }else{
+    #   ret <- lapply(as.list(1:n.chains), function(y){mcmcse::multiESS(as.matrix(x$samples[[y]][[2]]),
+    #                                                                   method = method,
+    #                                                                   r = 1,
+    #                                                            size = NULL,
+    #                                                            g = NULL,
+    #                                                            adjust = TRUE,
+    #                                                            blather = TRUE)})%>%
+    #     do.call('c', .)%>%
+    #     mean(.)
+    # }
   })%>%
     do.call('c', .)
 
@@ -94,37 +92,38 @@ compareModelsPars <- function(models = list(),
   # Monte Carlo Sample Error
   ######################
   if(MCse) MCseret <- lapply(models, function(x){
-    nDim <- length(x$samples[[1]])
-    if(nDim > 2){
-      ret <- lapply(as.list(1:n.chains), function(y){
-        N <- nrow(as.matrix(x$samples))
-        mcse <- mcmcse::mcse.multi(as.matrix(x$samples),
+    #nDim <- length(x$samples[[1]])
+    #if(nDim > 2){
+      #ret <- lapply(as.list(1:n.chains), function(y){
+        #N <- nrow(as.matrix(x$samples))
+        mcse <- mcmcse::mcse.mat(as.matrix(x$samples),
                                    method = "bm",
-                                   g = g,
-                         blather = TRUE)
-        mcseRet <- c(mcse$cov/N)
-        return(mcseRet)
-        }%>%
-          do.call("c", .)%>%
-          mean(.))
-    }else{
-      ret <- lapply(as.list(1:n.chains), function(y){
-        N <- nrow(as.matrix(x$samples[[y]]))
-        mcse <- mcmcse::mcse.multi(as.matrix(x$samples[[y]]),
-                                   method = "bm",
-                                   g = g,
-                                   blather = TRUE)
-        mcseRet <- c(mcse$cov/N)
-        return(mcseRet)
-      }%>%
-        do.call("c", .)%>%
-        mean(.))
-    }
-  })%>%
-    do.call('rbind', .)
+                                   g = NULL)
+        #mcseRet <- c(mcse$cov/N)
+        #return(mcse)
+      #})
+        # })%>%
+        #   do.call("rbind", .)#%>%
+        #   #mean(.))
+    # }else{
+    #   ret <- lapply(as.list(1:n.chains), function(y){
+    #     N <- nrow(as.matrix(x$samples[[y]]))
+    #     mcse <- mcmcse::mcse.multi(as.matrix(x$samples[[y]]),
+    #                                method = "bm",
+    #                                g = g,
+    #                                blather = TRUE)
+    #     mcseRet <- c(mcse$cov/N)
+    #     return(mcseRet)
+    #   }%>%
+    #     do.call("c", .)%>%
+    #     mean(.))
+    # }
+  #})%>%
+  })
+    #do.call('rbind', .)
 
   #setting names for model
-  rownames(MCseret) <- modelNames
+  #rownames(MCseret) <- modelNames
 
 #########################
 # estimating efficiency
@@ -134,10 +133,20 @@ compareModelsPars <- function(models = list(),
   #setting names for efficiency
   colnames(efficiencyRet) <- modelNames
 
-  retDataFrame <- data.frame(timesRun = timesRet,
-                             ess = ESSret,
-                             efficiency = efficiencyRet,
-                             mcse = MCseret)
+
+
+  retDataFrame <- lapply(1:length(models), function(x){
+    data.frame(timesRun = timesRet[x],
+               ess = ESSret[x],
+               efficiency = efficiencyRet[x],
+               mcse = MCseret[[x]])
+  })%>%
+    do.call("rbind", .)
+
+  # retDataFrame <- data.frame(timesRun = timesRet,
+  #                            ess = ESSret,
+  #                            efficiency = efficiencyRet,
+  #                            mcse = MCseret)
   return(retDataFrame)
 }
 
@@ -205,48 +214,61 @@ if(timeRun)  timesRet <-  lapply(models, function(x){
   ##################
 if(MCse) {MCseRet <- lapply(seq_along(models), function(i){
     x <- models[[i]]
-    nDim <- length(x$samples[[1]])
-    if(nDim >2 ){
-      ret <- lapply(as.list(1:n.chains), function(y){seEst <- mcmcse::mcse.mat(as.matrix(x$samples[[y]][,nodes]),
+    #nDim <- length(x$samples[[1]])
+    #if(nDim >2 ){
+      seEst <- mcmcse::mcse.mat(as.matrix(x$samples[,nodes]),
                                                                method = "bm",
                                                                g = NULL)%>%
                                                               as.data.frame()%>%
                                                               dplyr::select(se)
-                    colnames(seEst) <- modelNames[i]
+                    #colnames(seEst) <- modelNames[i]
+
+                    # seEst <- seEst%>%
+                    #   do.call("rbind", .)
+
                     return(seEst)
-                    })
-
-      names(ret) <- chainNames
-
-      ret$all.chains <- do.call("cbind", ret)%>%
-        rowMeans(.)
-    }else{
-      ret <- lapply(as.list(1:n.chains), function(y){seEst <- mcmcse::mcse.mat(as.matrix(x$samples[[y]][[2]][,nodes]),
-                                                                               method = "bm",
-                                                                               g = NULL)%>%
-        as.data.frame()%>%
-        dplyr::select(se)
-      colnames(seEst) <- modelNames[i]
-      return(seEst)
-      })
-
-      names(ret) <- chainNames
-
-      ret$all.chains <- do.call("cbind", ret)%>%
-        rowMeans(.)
-    }
-
-    return(ret)
-  })
-names(MCseRet) <- modelNames
+      #
+      #
+      # names(ret) <- chainNames
+      #
+      # ret$all.chains <- do.call("cbind", ret)%>%
+      #   rowMeans(.)
+  #   }else{
+  #     ret <- lapply(as.list(1:n.chains), function(y){seEst <- mcmcse::mcse.mat(as.matrix(x$samples[[y]][[2]][,nodes]),
+  #                                                                              method = "bm",
+  #                                                                              g = NULL)%>%
+  #       as.data.frame()%>%
+  #       dplyr::select(se)
+  #     colnames(seEst) <- modelNames[i]
+  #     return(seEst)
+  #     })
+  #
+  #     names(ret) <- chainNames
+  #
+  #     ret$all.chains <- do.call("cbind", ret)%>%
+  #       rowMeans(.)
+  #   }
+  #
+  #   return(ret)
+  # })
+#names(MCseRet) <- modelNames
+})%>%
+  do.call("cbind", .)
 }
   #############
   # Effective sample Size
   ##############
- if(ESS)   ESSret <- lapply(models, function(x) {ggmcmc::ggs_effective(ggs(x$samples),
-                        proportion = FALSE,
-                        plot =  FALSE)%>%
-   dplyr::filter(Parameter %in% nodes)
+ if(ESS)   ESSret <- lapply(models, function(x) {
+   ret <- mcmcse::ess(as.matrix(x$samples[,nodes]))%>%
+     as.data.frame()
+
+   colnames(ret) <- "Effective"
+
+   return(ret)
+   # ggmcmc::ggs_effective(ggs(x$samples),
+   #                      proportion = FALSE,
+   #                      plot =  FALSE)%>%
+   # dplyr::filter(Parameter %in% nodes)
     })
 
   #############
@@ -256,7 +278,7 @@ names(MCseRet) <- modelNames
     ESSret[[i]]%>%
       dplyr::mutate(timeRan = as.numeric(timesRet[i]),
                     efficiency = Effective/ as.numeric(timesRet[i]),
-                    mcse = MCseRet[[i]]$all.chains)
+                    mcse = MCseRet[[i]])
   })
   names(efficiencyRet) <- modelNames
 }
@@ -345,7 +367,7 @@ MCseRet <- lapply(seq_along(models), function(i){
     if(nDim >2 ){
       ret <- lapply(as.list(1:n.chains), function(y){seEst <- mcmcse::mcse.mat(as.matrix(x$samples[[y]][,nodes]),
                                                                                method = "bm",
-                                                                               size = bacthSize,
+                                                                               #size = bacthSize,
                                                                                g = NULL)%>%
         as.data.frame()%>%
         dplyr::select(se)
