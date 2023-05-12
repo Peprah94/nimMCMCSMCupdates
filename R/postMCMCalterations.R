@@ -675,10 +675,10 @@ compareModelsMeanPlots <- function(models = list(),
 
  if(!expandedNodes){
    sePlot  <- ggplot(sePlotData , mapping = aes(x = Parameters, y = mean, col = model, group = model))+
-   geom_point(aes(col = model))+
-   geom_line()+
+   geom_point(aes(col = model), position = position_dodge(width = 0.4))+
+   geom_line(position = position_dodge(width = 0.4))+
    geom_errorbar(aes(ymin = mean - se, ymax = mean + se, col = model),
-                 position = position_dodge(width = 0.9)) +
+                 position = position_dodge(width = 0.4)) +
    scale_color_brewer(palette = "Paired")+
    theme_bw()+
    xlab("")+
@@ -690,10 +690,10 @@ compareModelsMeanPlots <- function(models = list(),
      #ylim(c(-20,20))
  }else{
    sePlot  <-  ggplot(sePlotData , mapping = aes(x = Parameters, y = mean, col = model, group = model))+
-     geom_point(aes(col = model), position = position_dodge(width = 0.5))+
+     geom_point(aes(col = model), position = position_dodge(width = 0.4))+
      #geom_line()+
      geom_errorbar(aes(ymin = mean - se, ymax = mean + se, col = model),
-                   position = position_dodge(width = 0.9)#,
+                   position = position_dodge(width = 0.4)#,
                    #width = 0.05,
                   # size = 1
                    ) +
