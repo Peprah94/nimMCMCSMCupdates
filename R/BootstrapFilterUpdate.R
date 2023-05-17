@@ -90,22 +90,22 @@ bootFStepUpdate <- nimbleFunction(
     llEst <- numeric(m, init=FALSE)
     out <- numeric(2, init=FALSE)
 
-    if(t > iNodePrev ){
-      values(model, targetNodesAsScalar) <<- storeModelValues
+    if(t > iNodePrev - 1 ){
+      #values(model, targetNodesAsScalar) <<- storeModelValues
     for(i in 1:m) {
       if(notFirst) {
         if(smoothing == 1){
-          copy(mvEWSamples, mvWSamples, nodes = allPrevNodes,
+          nimCopy(mvEWSamples, mvWSamples, nodes = allPrevNodes,
                nodesTo = allPrevNodes, row = i, rowTo=i)
         }
-        copy(mvEWSamples, model, nodes = prevXName, nodesTo = prevNode, row = i)
+        nimCopy(mvEWSamples, model, nodes = prevXName, nodesTo = prevNode, row = i)
         model$calculate(prevDeterm)
         }
       #}
 
       model$simulate(calc_thisNode_self)
       ## The logProbs of calc_thisNode_self are, correctly, not calculated.
-      copy(model, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
+      nimCopy(model, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
       wts[i]  <- model$calculate(calc_thisNode_deps)
       if(is.nan(wts[i])){
         out[1] <- -Inf
@@ -122,18 +122,19 @@ bootFStepUpdate <- nimbleFunction(
 
     maxllEst <- max(llEst)
     stepllEst <- maxllEst + log(sum(exp(llEst - maxllEst)))
+
     if(is.nan(stepllEst)){
       out[1] <- -Inf
       out[2] <- 0
-      return(out)
-    }
-    if(stepllEst == Inf | stepllEst == -Inf){
+      #return(out)
+    }else if(stepllEst == Inf | stepllEst == -Inf){
       out[1] <- -Inf
       out[2] <- 0
-      return(out)
-    }
-
+      #return(out)
+    }else{
     out[1] <- stepllEst
+}
+
 
     ## Normalize weights and calculate effective sample size, using log-sum-exp trick to avoid underflow.
     maxWt <- max(wts)
@@ -151,10 +152,10 @@ bootFStepUpdate <- nimbleFunction(
       ## Resampling affects how ll estimate is calculated at next time point.
       out[2] <- 1
       for(i in 1:m){
-        copy(mvWSamples, mvEWSamples, nodes = thisXName, nodesTo = thisXName,
+        nimCopy(mvWSamples, mvEWSamples, nodes = thisXName, nodesTo = thisXName,
              row = ids[i], rowTo = i)
         if(smoothing == 1){
-          copy(mvWSamples, mvEWSamples, nodes = allPrevNodes,
+          nimCopy(mvWSamples, mvEWSamples, nodes = allPrevNodes,
                nodesTo = allPrevNodes, row = ids[i], rowTo=i)
         }
         mvWSamples['wts',i][currInd] <<- log(wts[i])
@@ -177,23 +178,25 @@ bootFStepUpdate <- nimbleFunction(
     return(out)
     }else{
       # for t < iNodePrev
+      # Copy the target values into the model too
+      nimCopy(from = mvSamplesEst, to = model, nodes = target,row = iterRun)
+
+      #update the deterministic vars
+      if(notFirst) {
+        model$calculate(prevDeterm)
+      }
+
       for(i in 1:m) {
         #copy the same values from the iteration number to all the M particles
         nimCopy(mvSamplesEst, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
         nimCopy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
 
-        # Copy the target values into the model too
-    nimCopy(from = mvSamplesEst, to = model, nodes = target,row = iterRun)
 
-    #update the deterministic vars
-    if(notFirst) {
-      model$calculate(prevDeterm)
-    }
 
     #set previous weights to 1 and log likelihood to 0,
     #assuming they are deterministic and would not contribute to the model after t > iNodePrev
         mvWSamples['wts',i][currInd] <<- 1
-        mvWSamples['bootLL',i][currInd] <<-0
+        mvWSamples['bootLL',i][currInd] <<- 1
 
         wts[i] <- 1
 
@@ -203,8 +206,22 @@ bootFStepUpdate <- nimbleFunction(
       stepllEst <- maxllEst + log(sum(exp(llEst - maxllEst)))
 
 
-        out[1] <- stepllEst
-        out[2] <- 0
+
+
+        #out[1] <- stepllEst
+        if(is.nan(stepllEst)){
+          out[1] <- -Inf
+          out[2] <- 0
+          return(out)
+        }
+        if(stepllEst == Inf | stepllEst == -Inf){
+          out[1] <- -Inf
+          out[2] <- 0
+          return(out)
+        }
+
+      out[1] <- stepllEst
+      out[2] <- 1
 
        ess <<- 1/sum(wts^2)
 

@@ -64,8 +64,9 @@ baselineSpartaEstimation <- function(model, #nimbleModel
 
   #Loglikelihood of last run and the Effective sample sizes
   #message("Running the particle filter")
-  #logLik <-   compiledParticleFilter$particleFilter$run(m = nParFiltRun)
- # ESS <-   compiledParticleFilter$particleFilter$returnESS()
+  compiledParticleFilterEst <- compileNimble(estimationModel,  particleFilterEst)
+  logLik <-   compiledParticleFilterEst$particleFilter$run(m = nParFiltRun)
+  ESS <-   compiledParticleFilterEst$particleFilter$returnESS()
 
   message("Setting up the MCMC Configuration")
   #model <- model$newModel(replicate = TRUE)
@@ -554,8 +555,8 @@ spartaNimUpdates <- function(model, #nimbleModel
    }
 
   #checking if the updated pF works very well
- # compiledParticleFilter <- compileNimble(estimationModel,  particleFilterEst)
-  #compiledParticleFilter$particleFilterEst$run(m = 10000, iterRun = 40, storeModelValues = values(estimationModel, targetNodes))
+  #compiledParticleFilter <- compileNimble(estimationModel,  particleFilterEst)
+  #compiledParticleFilter$particleFilterEst$run(m = 100, iterRun = 30, storeModelValues = values(estimationModel, target))
 
   message("Setting up the MCMC Configuration")
   #newModel <- model$newModel(replicate = TRUE)
