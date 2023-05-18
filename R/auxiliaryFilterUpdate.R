@@ -128,8 +128,8 @@ auxFStepUpdate <- nimbleFunction(
     ll <- numeric(m, init=FALSE)
 
     ## This is the look-ahead step, not conducted for first time-point.
-    if(t > iNodePrev){
-   values(model, targetNodesAsScalar) <<- storeModelValues
+    if(t > iNodePrev-1){
+   #values(model, targetNodesAsScalar) <<- storeModelValues
     if(notFirst){
       for(i in 1:m) {
         if(smoothing == 1){

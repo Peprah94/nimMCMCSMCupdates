@@ -599,8 +599,7 @@ if(pfType == "bootstrap"){
   ## build and compile pMCMC sampler
   modelMCMC <- buildMCMC(modelMCMCconf)
   compiledList <- nimble::compileNimble(model,
-                                        modelMCMC,
-                                        resetFunctions = TRUE)
+                                        modelMCMC)
   timeStart2 <- Sys.time()
   message("Running the PF MCMC")
   #run MCMC

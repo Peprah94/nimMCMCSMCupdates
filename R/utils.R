@@ -165,7 +165,7 @@ findLatentNodes <- function(model, nodes, timeIndex = NULL) {
 
  mySetAndCalculateUpdate <- nimbleFunction(
    name = 'mySetAndCalculateUpdate',
-   setup = function(model, target, latents, mvSamplesEst, my_particleFilter, m, topParamsInter, extraTargetVars, mvSaved) {# postSamples) {
+   setup = function(model, target, latents, mvSamplesEst, my_particleFilter, m, topParamsInter, mvSaved) {# postSamples) {
      targetNodesAsScalar <- model$expandNodeNames(target, returnScalarComponents = TRUE)
      calcNodes <- model$getDependencies(target)
      latentDep <- model$getDependencies(latents)
@@ -176,7 +176,7 @@ findLatentNodes <- function(model, nodes, timeIndex = NULL) {
     nimCopy(from = mvSamplesEst, to = model, nodes = target,row = iterRan)
     #nimCopy(from = mvSaved, to = model, nodes = extraTargetVars, row = 1)
     #for now, I am simulating the extraPars values, the idea is to use the previous values
-    model$simulate(extraTargetVars)
+    #model$simulate(extraTargetVars)
     model$calculate()
     #nimCopy(from = mvSamplesEst, to = model, nodes = calNodesStoch,row = iterRan)
     #model$simulate(calNodesStoch)
@@ -323,7 +323,7 @@ findLatentNodes <- function(model, nodes, timeIndex = NULL) {
 sampleTopPars <- nimbleFunction(
    name = 'sampleTopPars',
    #contains = sampler_BASE,
-   setup = function(model, mvSaved, topParams, mvSamplesEst, scale, latents, target, extraTargetVars) {
+   setup = function(model, mvSaved, topParams, mvSamplesEst, scale, latents, target) {
      ccList <- myMcmc_determineCalcAndCopyNodes(model, topParams)
      calcNodes <- ccList$calcNodes
      copyNodesDeterm <- ccList$copyNodesDeterm; copyNodesStoch <- ccList$copyNodesStoch  # not used: calcNodes, calcNodesNoSelf
@@ -347,7 +347,7 @@ sampleTopPars <- nimbleFunction(
    run = function(iterRan = integer()){#, pfModelValues = double(), predVals = double(), topParamsVals = double()) {
      nimCopy(from = mvSamplesEst, to = model, row = iterRan, rowTo = 1, nodes = target)
      nimCopy(from = mvSamplesEst, to = model, row = iterRan, rowTo = 1, nodes = latents, nodesTo = latents)
-     model$simulate(extraTargetVars)
+     #model$simulate(extraTargetVars)
      model$calculate()
      propVector <- generateProposalVector()
      lpD <- my_setAndCalculate$run(exp(propVector))

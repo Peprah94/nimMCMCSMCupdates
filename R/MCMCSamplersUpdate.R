@@ -284,8 +284,8 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     topParamsInter <- topParamsDeps[!topParamsDeps %in% model$expandNodeNames(latents)]
 
     #Extra vars to simulate
-    extraTargetVars <- topParamsInter[!grepl("[[1]]", topParamsInter)]
-
+    #extraTargetVars <- topParamsInter[!grepl("[[1]]", topParamsInter)]
+   # extraTargetVars <- extraTargetVars[!extraTargetVars %in% topParamsInter]
 
     target <- model$expandNodeNames(target)
 
@@ -353,7 +353,7 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     my_calcAdaptationFactor <- calcAdaptationFactor(d, adaptFactorExponent)
     #if(multiple)
     #mvSavedNew <- modelValues(model)
-    my_sampleTopPars <- sampleTopPars(model, mvSaved, topParams, mvSamplesEst, scale, latents, target, extraTargetVars)
+    my_sampleTopPars <- sampleTopPars(model, mvSaved, topParams, mvSamplesEst, scale, latents, target)
 
     if(!is.null(existingPF)) {
       my_particleFilter <- existingPF
@@ -410,7 +410,7 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     #extraParsToSave <- calcNodes[!calcNodes %in% model$expandNodeNames(c(target, latents))]
     #my_setAndCalculate <- setAndCalculate(model, target)
     my_setAndCalculate <- setAndCalculate(model, topParamsInter)
-    my_setAndCalculateUpdate <-  mySetAndCalculateUpdate(model, target, latents, mvSamplesEst, my_particleFilter, m, topParamsInter, extraTargetVars, mvSaved)
+    my_setAndCalculateUpdate <-  mySetAndCalculateUpdate(model, target, latents, mvSamplesEst, my_particleFilter, m, topParamsInter, mvSaved)
     #my_decideAndJump <-  myDecideAndJump(model, mvSaved, topParamsInter,latentAsScalar, mvSamplesEst)
     #my_calcAdaptationFactor <- calcAdaptationFactor(d, adaptFactorExponent)
    #if(multiple)
@@ -460,33 +460,40 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
   },
   run = function() {
     iterRan <<- my_particleFilter$getLastTimeRan()
-
+#print(iterRan)
     # Update top Pars
     #propValueVectorTopPars <- generateProposalVector(topParams)
     #MHAR for top Level pars
   if(multiple) my_sampleTopPars$run(iterRan)
-
+#print(2)
     #MHAR for additional pars
     storeParticleLP <<- my_setAndCalculateUpdate$run(iterRan)
+    #print(3)
     #store values from reduced model
     pfModelValues <<- values(model, latentAsScalar)
     targetModelValues <<- values(model, topParamsInter)
+   # print(4)
     if(multiple) topParamsValues <<- values(model, topParams)
     #predVals <<- values(model, predictivePars)
     #topParamsVals <<- values(model, topParams)
-
+#print(5)
     modelLP0 <- storeParticleLP + getLogProb(model, topParamsInter)
     propValueVector <- generateProposalVector()
+    #print(6)
     my_setAndCalculate$run(propValueVector)
     #add the topParams values to the proposal vector since it will enter the particle filter
     if(multiple) propValueVector <- c(topParamsValues, propValueVector)
+    #print(7)
     particleLP <- my_particleFilter$run(m = m, iterRun = iterRan, storeModelValues = propValueVector)
+    #print(8)
     modelLP1 <- particleLP + getLogProb(model, topParamsInter)
+    #print(9)
     jump <- my_decideAndJump$run(modelLP1, modelLP0, 0, 0, iterRan)#, pfModelValues, predVals, topParamsVals)
 
    # if(!jump) {
    #   my_particleFilter$setLastLogLik(storeParticleLP)
    # }
+    #print(10)
     if(jump ){#& latentSamp) {
       ## if we jump, randomly sample latent nodes from pf output and put
       ## into model so that they can be monitored
