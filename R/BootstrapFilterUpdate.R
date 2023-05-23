@@ -97,7 +97,7 @@ bootFStepUpdate <- nimbleFunction(
 
     if(t > iNodePrev){
     for(i in 1:m) {
-      values(model, targetNodesAsScalar) <- storeModelValues
+      values(model, targetNodesAsScalar) <<- storeModelValues
       if(notFirst) {
         if(smoothing == 1){
           nimCopy(mvEWSamples, mvWSamples, nodes = allPrevNodes,
@@ -203,7 +203,7 @@ bootFStepUpdate <- nimbleFunction(
 
     #set previous weights to 1 and log likelihood to 0,
     #assuming they are deterministic and would not contribute to the model after t > iNodePrev
-        mvWSamples['wts',i][currInd] <- 1
+        mvWSamples['wts',i][currInd] <<- 1
         mvWSamples['bootLL',i][currInd] <<- 1
 
         wts[i] <- 1
