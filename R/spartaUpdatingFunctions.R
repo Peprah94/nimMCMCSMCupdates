@@ -191,7 +191,7 @@ spartaNimWeights <- function(model, #nimbleModel
 
     #
     #target <- c(target, additionalPars)
-    cMCMC <- configureMCMC(model, monitors = c(target, latent, additionalPars))
+    cMCMC <- configureMCMC(model, monitors = c(target, latent, additionalPars), useConjugacy = FALSE)
 
     if(block == TRUE){
       cMCMC$removeSampler(target)
@@ -200,7 +200,7 @@ spartaNimWeights <- function(model, #nimbleModel
       cMCMC = cMCMC
     }
     #
-    bMCMC <- buildMCMC(cMCMC)
+    bMCMC <- buildMCMC(cMCMC, useConjugacy = FALSE)
     #
     coMCMC <- compileNimble(bMCMC, project = nMCompile)
     #
@@ -555,8 +555,12 @@ spartaNimUpdates <- function(model, #nimbleModel
    }
 
   #checking if the updated pF works very well
-  #compiledParticleFilter <- compileNimble(estimationModel,  particleFilterEst)
-  #compiledParticleFilter$particleFilterEst$run(m = 100, iterRun = 30, storeModelValues = values(estimationModel, target))
+  #targetAsScalar <- sort(estimationModel$expandNodeNames(target, returnScalarComponents = TRUE))
+  compiledParticleFilter <- compileNimble(estimationModel,  particleFilterEst)
+
+  compiledParticleFilter$particleFilterEst$run(m = 10000, iterRun = 100, storeModelValues = values(estimationModel, target))
+
+
 
   message("Setting up the MCMC Configuration")
   #newModel <- model$newModel(replicate = TRUE)

@@ -128,8 +128,8 @@ auxFStepUpdate <- nimbleFunction(
     ll <- numeric(m, init=FALSE)
 
     ## This is the look-ahead step, not conducted for first time-point.
-    if(t > iNodePrev-1){
-   #values(model, targetNodesAsScalar) <<- storeModelValues
+    if(t > iNodePrev){
+   values(model, targetNodesAsScalar) <<- storeModelValues
     if(notFirst){
       for(i in 1:m) {
         if(smoothing == 1){
@@ -233,15 +233,13 @@ auxFStepUpdate <- nimbleFunction(
     return(outLL)
      }else{
 # for t < iNodePrev
-
-
-
+       nimCopy(from = mvSamplesEst, to = model, nodes = target,row = iterRun)
        for(i in 1:m) {
              nimCopy(mvSamplesEst, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
              nimCopy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
            wts[i] <- 1
       # }
-           nimCopy(from = mvSamplesEst, to = model, nodes = target,row = iterRun)
+
 
        if(notFirst) {
          model$calculate(prevDeterm)
@@ -367,7 +365,7 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
     if(is.null(saveAll)) saveAll <- FALSE
     if(is.null(smoothing)) smoothing <- FALSE
     if(is.null(lookahead)) lookahead <- 'simulate'
-    if(is.null(initModel)) initModel <- FALSE
+    if(is.null(initModel)) initModel <- TRUE
     if(!saveAll & smoothing) stop("must have saveAll = TRUE for smoothing to
                                   work")
     if(lookahead == "mean"){

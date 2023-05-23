@@ -85,14 +85,19 @@ bootFStepUpdate <- nimbleFunction(
                  threshNum = double(),
                  prevSamp = logical()) {
     returnType(double(1))
+
+    #wts <- ids <- llEst<-  numeric(m)
+    # out <- numeric(2)
     wts <- numeric(m, init=FALSE)
     ids <- integer(m, 0)
     llEst <- numeric(m, init=FALSE)
     out <- numeric(2, init=FALSE)
 
-    if(t > iNodePrev - 1 ){
-      #values(model, targetNodesAsScalar) <<- storeModelValues
+   # print(t + 1)
+
+    if(t > iNodePrev){
     for(i in 1:m) {
+      values(model, targetNodesAsScalar) <- storeModelValues
       if(notFirst) {
         if(smoothing == 1){
           nimCopy(mvEWSamples, mvWSamples, nodes = allPrevNodes,
@@ -104,9 +109,12 @@ bootFStepUpdate <- nimbleFunction(
       #}
 
       model$simulate(calc_thisNode_self)
+      #model$simulate(calc_thisNode_deps)
       ## The logProbs of calc_thisNode_self are, correctly, not calculated.
       nimCopy(model, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
+      #model$calculate()
       wts[i]  <- model$calculate(calc_thisNode_deps)
+      #print(wts[i])
       if(is.nan(wts[i])){
         out[1] <- -Inf
         out[2] <- 0
@@ -163,7 +171,7 @@ bootFStepUpdate <- nimbleFunction(
     } else {
       out[2] <- 0
       for(i in 1:m){
-        copy(mvWSamples, mvEWSamples, nodes = thisXName, nodesTo = thisXName,
+        nimCopy(mvWSamples, mvEWSamples, nodes = thisXName, nodesTo = thisXName,
              row = i, rowTo = i)
         if(smoothing == 1){
           copy(mvWSamples, mvEWSamples, nodes = allPrevNodes,
@@ -179,11 +187,11 @@ bootFStepUpdate <- nimbleFunction(
     }else{
       # for t < iNodePrev
       # Copy the target values into the model too
-      nimCopy(from = mvSamplesEst, to = model, nodes = target,row = iterRun)
+      nimCopy(from = mvSamplesEst, to = model, nodes = target,row = iterRun, rowTo = 1)
 
       #update the deterministic vars
       if(notFirst) {
-        model$calculate(prevDeterm)
+        model$calculate()
       }
 
       for(i in 1:m) {
@@ -195,11 +203,11 @@ bootFStepUpdate <- nimbleFunction(
 
     #set previous weights to 1 and log likelihood to 0,
     #assuming they are deterministic and would not contribute to the model after t > iNodePrev
-        mvWSamples['wts',i][currInd] <<- 1
+        mvWSamples['wts',i][currInd] <- 1
         mvWSamples['bootLL',i][currInd] <<- 1
 
         wts[i] <- 1
-
+#print(wts[i])
         llEst[i] <- wts[i] - log(m)
       }
       maxllEst <- max(llEst)
@@ -339,7 +347,7 @@ buildBootstrapFilterUpdate <- nimbleFunction(
     if(is.null(silent)) silent <- TRUE
     if(is.null(saveAll)) saveAll <- FALSE
     if(is.null(smoothing)) smoothing <- FALSE
-    if(is.null(initModel)) initModel <- TRUE
+    if(is.null(initModel)) initModel <- FALSE
     if(is.null(resamplingMethod)) resamplingMethod <- 'default'
     if(!(resamplingMethod %in% c('default', 'multinomial', 'systematic', 'stratified',
                                  'residual')))
@@ -439,6 +447,7 @@ buildBootstrapFilterUpdate <- nimbleFunction(
       out <- bootStepFunctions[[iNode]]$run(m, iterRun, storeModelValues, threshNum, prevSamp)
       logL <- logL + out[1]
       prevSamp <- out[2]
+      #print(iNode)
       essVals[iNode] <<- bootStepFunctions[[iNode]]$returnESS()
       if(logL == -Inf) {lastLogLik <<- logL; return(logL)}
       if(is.nan(logL)) {lastLogLik <<- -Inf; return(-Inf)}
