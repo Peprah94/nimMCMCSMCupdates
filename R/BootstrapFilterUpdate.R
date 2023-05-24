@@ -97,7 +97,7 @@ bootFStepUpdate <- nimbleFunction(
 
     if(t > iNodePrev){
     for(i in 1:m) {
-      values(model, targetNodesAsScalar) <- storeModelValues
+      values(model, targetNodesAsScalar) <<- storeModelValues
       if(notFirst) {
         if(smoothing == 1){
           nimCopy(mvEWSamples, mvWSamples, nodes = allPrevNodes,
