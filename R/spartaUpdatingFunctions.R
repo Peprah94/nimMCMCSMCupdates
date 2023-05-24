@@ -364,8 +364,8 @@ updateUtils <- function(model, #reduced model
 latentNodes <- model$expandNodeNames(latent)
 nodes <- findLatentNodes(model, latent, timeIndex)
 
-lastNode <- findLatentNodes(reducedModel, latent, timeIndex )
-lastNode <- lastNode[length(lastNode)]
+lastNodes <- findLatentNodes(reducedModel, latent, timeIndex )
+lastNode <- lastNodes[length(lastNodes)]
 
 dims <- lapply(nodes[1:2], function(n) nimDim(model[[n]]))
 
@@ -408,7 +408,8 @@ for(iter in 1:n.iter){
       extraVars <- length(model$expandNodeNames(names[j])) == length(reducedModel$expandNodeNames(names[j]))
      # extraVars <- model$expandNodeNames(names[j])[!model$expandNodeNames(names[j]) %in% reducedModel$expandNodeNames(names[j])]
       if(!extraVars){
-      extraValues <- rep(0, length(model$expandNodeNames(nodes[-1])))
+      extraValues <- values(model, model$expandNodeNames(nodes[-1]))
+        #rep(0, length(model$expandNodeNames(nodes[-1])))
       #names(extraValues) <- extraVars
       allVals <- c(mcmcOut[iter, reducedModel$expandNodeNames(lastNode)], extraValues)
       names(allVals) <- model$expandNodeNames(nodes)
@@ -428,7 +429,8 @@ for(iter in 1:n.iter){
       }else{
         namesExpanded <- reducedModel$expandNodeNames(names[j])
         lastName <- namesExpanded[length(namesExpanded)]
-       estValues <- c(mcmcOut[iter, lastName ], rep(0, length(model$expandNodeNames(names[j]))-1))
+        extraVals <- values(model, (model$expandNodeNames(names[j]))[-1])
+       estValues <- c(mcmcOut[iter, lastName ], extraVals)#rep(0, length(model$expandNodeNames(names[j]))-1))
        names(estValues) <- model$expandNodeNames(names[j])
       }
        }else{
@@ -459,7 +461,9 @@ spartaNimUpdates <- function(model, #nimbleModel
                              latent, #the latent variable
                              #newData,
                              postReducedMCMC,
-                             target
+                             target,
+                             extraVars,
+                             mcmcScale
 ){
 
   target = MCMCconfiguration[["target"]]
@@ -587,13 +591,14 @@ if(pfType == "bootstrap"){
                                           #target = target,
                                           adaptive = FALSE,
                                           #adaptInterval = 100,
-                                          #scale = 1,
+                                          scale = mcmcScale,
                                          # pf = particleFilter,
                                           pfControl = pfControl, #list( M = M, iNodePrev = iNodePrev),
                                           pfNparticles = nParFiltRun,
                                           pfType = pfTypeUpdate,
                                           postSamples = postReducedMCMC$samples[[chain.iter]],
                                            mvSamplesEst = mvSamplesEst,
+                                         extraVars = extraVars,
                                           reducedModel = reducedModel)
   )
 

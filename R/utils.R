@@ -165,7 +165,7 @@ findLatentNodes <- function(model, nodes, timeIndex = NULL) {
 
 mySetAndCalculateUpdate <- nimbleFunction(
   name = 'mySetAndCalculateUpdate',
-  setup = function(model, target, latents, mvSamplesEst, my_particleFilter, m, topParamsInter, mvSaved) {# postSamples) {
+  setup = function(model, target, latents, mvSamplesEst, my_particleFilter, m, topParamsInter, mvSaved, extraTargetVars) {# postSamples) {
     targetNodesAsScalar <- model$expandNodeNames(target, returnScalarComponents = TRUE)
     calcNodes <- model$getDependencies(target)
     latentDep <- model$getDependencies(latents)
@@ -175,8 +175,10 @@ mySetAndCalculateUpdate <- nimbleFunction(
     index <- ceiling(runif(1, 0, m))
     nimCopy(from = mvSamplesEst, to = model, nodes = target,row = iterRan)
     #nimCopy(from = mvSaved, to = model, nodes = extraTargetVars, row = 1)
+
     #for now, I am simulating the extraPars values, the idea is to use the previous values
-    #model$simulate(extraTargetVars)
+    model$calculate()
+    model$simulate(extraTargetVars)
     model$calculate()
     #nimCopy(from = mvSamplesEst, to = model, nodes = calNodesStoch,row = iterRan)
     #model$simulate(calNodesStoch)

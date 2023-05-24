@@ -252,6 +252,7 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     optimizeM           <- extractControlElement(control, 'pfOptimizeNparticles', FALSE)
     latents             <- extractControlElement(control, 'latents',              error = 'RW_PF sampler missing required control argument: latents')
     # postSamples <- extractControlElement(control, 'postSamples', double())
+    extraVars <- extractControlElement(control, 'extraVars', double())
     mvSamplesEst <- extractControlElement(control, 'mvSamplesEst', double())
     reducedModel <- extractControlElement(control, 'reducedModel', double())
     #target <- extractControlElement(control, 'target', double())
@@ -299,8 +300,12 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     })
 
     #Extract the top Parameters
-    topParams <- topParams[unlist(trueTopParams )]
+    topParamsTRUE <- topParams[unlist(trueTopParams )]
 
+    trueParamsFALSE <- topParams[!unlist(trueTopParams )]
+    topParams <- topParamsTRUE
+
+    print(topParams)
     # Get dependencies of top Parameters
     topParamsDeps <- model$getDependencies(topParams, self = FALSE, includeData = FALSE, stochOnly = TRUE)
 
@@ -309,8 +314,8 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     #dataNodes <- dataNodes[model$isData(nodes = dataNodes)]
 
     #Intermediary parameters
-    topParamsInter <- topParamsDeps[!topParamsDeps %in% c(model$expandNodeNames(latents), model$expandNodeNames(dataNodes))]
-
+    topParamsInter <- unique(c(topParamsDeps[!topParamsDeps %in% c(model$expandNodeNames(latents), model$expandNodeNames(dataNodes))], trueParamsFALSE))
+print(topParamsInter)
     #Extra vars to simulate
     #extraTargetVars <- topParamsInter[!grepl("[[1]]", topParamsInter)]
     # extraTargetVars <- extraTargetVars[!extraTargetVars %in% topParamsInter]
@@ -344,6 +349,14 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     #let topParamsInter = targetAsScalar
     if(NotMultiple == TRUE) topParamsInter = targetAsScalar
     topParamsInterDep <- model$getDependencies(topParamsInter, self = FALSE,  includeData = FALSE, stochOnly = TRUE)
+
+    if(multiple){
+      extraVars <- model$expandNodeNames(node = extraVars)
+      extraTargetVars <- extraVars[!grepl("[[1]]", extraVars)]
+    }else{
+      extraTargetVars = NULL
+    }
+
 
     if(multiple) target <- c(topParams, topParamsInter)
     ## numeric value generation
@@ -439,7 +452,7 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     #extraParsToSave <- calcNodes[!calcNodes %in% model$expandNodeNames(c(target, latents))]
     #my_setAndCalculate <- setAndCalculate(model, target)
     my_setAndCalculate <- setAndCalculate(model, topParamsInter)
-    my_setAndCalculateUpdate <-  mySetAndCalculateUpdate(model, target, latents, mvSamplesEst, my_particleFilter, m, topParamsInter, mvSaved)
+    my_setAndCalculateUpdate <-  mySetAndCalculateUpdate(model, target, latents, mvSamplesEst, my_particleFilter, m, topParamsInter, mvSaved, extraTargetVars)
     #my_decideAndJump <-  myDecideAndJump(model, mvSaved, topParamsInter,latentAsScalar, mvSamplesEst)
     #my_calcAdaptationFactor <- calcAdaptationFactor(d, adaptFactorExponent)
     #if(multiple)

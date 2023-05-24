@@ -87,7 +87,7 @@ bootFStepUpdate <- nimbleFunction(
     returnType(double(1))
 
     #wts <- ids <- llEst<-  numeric(m)
-    # out <- numeric(2)
+     #out <- numeric(2)
     wts <- numeric(m, init=FALSE)
     ids <- integer(m, 0)
     llEst <- numeric(m, init=FALSE)
@@ -97,7 +97,7 @@ bootFStepUpdate <- nimbleFunction(
 
     if(t > iNodePrev){
     for(i in 1:m) {
-      values(model, targetNodesAsScalar) <<- storeModelValues
+      values(model, targetNodesAsScalar) <- storeModelValues
       if(notFirst) {
         if(smoothing == 1){
           nimCopy(mvEWSamples, mvWSamples, nodes = allPrevNodes,
@@ -347,7 +347,7 @@ buildBootstrapFilterUpdate <- nimbleFunction(
     if(is.null(silent)) silent <- TRUE
     if(is.null(saveAll)) saveAll <- FALSE
     if(is.null(smoothing)) smoothing <- FALSE
-    if(is.null(initModel)) initModel <- FALSE
+    if(is.null(initModel)) initModel <- TRUE
     if(is.null(resamplingMethod)) resamplingMethod <- 'default'
     if(!(resamplingMethod %in% c('default', 'multinomial', 'systematic', 'stratified',
                                  'residual')))
