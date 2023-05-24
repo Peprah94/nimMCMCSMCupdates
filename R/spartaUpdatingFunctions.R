@@ -565,8 +565,8 @@ spartaNimUpdates <- function(model, #nimbleModel
   message("Setting up the MCMC Configuration")
   #newModel <- model$newModel(replicate = TRUE)
   modelMCMCconf <- nimble::configureMCMC(model,
-                                         monitors = c(target, latent, additionalPars))
-                                         # nodes = NULL)#, monitors = c(target, latent, additionalPars))
+                                         monitors = c(target, latent, additionalPars),
+                                         nodes = NULL)#, monitors = c(target, latent, additionalPars))
 
   if(is.null(pfType)){
     pfTypeUpdate = 'bootstrapUpdate'

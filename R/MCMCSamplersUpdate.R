@@ -315,7 +315,7 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     #extraTargetVars <- topParamsInter[!grepl("[[1]]", topParamsInter)]
     # extraTargetVars <- extraTargetVars[!extraTargetVars %in% topParamsInter]
 
-    target <- model$expandNodeNames(target)
+    #target <- model$expandNodeNames(target)
 
     #Whether we should use multiple
     #if(all(topParams %in% target) == TRUE){
