@@ -31,30 +31,31 @@ baselineSpartaEstimation <- function(model, #nimbleModel
     #values of the top-level nodes
     if(pfType == "auxiliary"){
       particleFilter <- nimbleSMC::buildAuxiliaryFilter(model,
-                                                             latent,
+                                                            nodes =  latent,
                                                              control = pfControl)
 
       particleFilterEst <- nimbleSMC::buildAuxiliaryFilter(estimationModel,
-                                                                latent,
+                                                               nodes =  latent,
                                                                 control = pfControl)
     }
 
     if(pfType == "bootstrap"){
       particleFilter <- nimbleSMC::buildBootstrapFilter(model,
-                                                             latent,
+                                                           nodes =  latent,
                                                              control = pfControl)
 
       particleFilterEst <-  nimbleSMC::buildBootstrapFilter(estimationModel,
-                                                                 latent,
-                                                                 control = pfControl)
+                                                               nodes =   latent,
+                                                                 control = pfControl
+                                                            )
     }
   }else{
     particleFilter <- nimbleSMC::buildBootstrapFilter(model,
-                                                           latent,
+                                                          nodes =  latent,
                                                            control = pfControl)
 
     particleFilterEst <- nimbleSMC::buildBootstrapFilter(estimationModel,
-                                                              latent,
+                                                              nodes = latent,
                                                               control = pfControl)
   }
 
@@ -65,8 +66,8 @@ baselineSpartaEstimation <- function(model, #nimbleModel
   #Loglikelihood of last run and the Effective sample sizes
   #message("Running the particle filter")
   compiledParticleFilterEst <- compileNimble(estimationModel,  particleFilterEst)
-  logLik <-   compiledParticleFilterEst$particleFilter$run(m = nParFiltRun)
-  ESS <-   compiledParticleFilterEst$particleFilter$returnESS()
+  logLik <-   compiledParticleFilterEst$particleFilterEst$run(m = nParFiltRun)
+  ESS <-   compiledParticleFilterEst$particleFilterEst$returnESS()
 
   message("Setting up the MCMC Configuration")
   #model <- model$newModel(replicate = TRUE)
@@ -77,7 +78,7 @@ baselineSpartaEstimation <- function(model, #nimbleModel
   modelMCMCconf$addSampler(target = target,
                            type = 'RW_PF_block',
                            control = list(latents = latent,
-                                          pfControl = list(saveAll = TRUE),
+                                          pfControl = pfControl,
                                           pfNparticles = nParFiltRun,
                                           pfType = pfType))
 
@@ -88,7 +89,7 @@ baselineSpartaEstimation <- function(model, #nimbleModel
   modelMCMC <- nimble::buildMCMC(modelMCMCconf)
   compiledList <- nimble::compileNimble(model,
                                         modelMCMC,
-                                        resetFunctions = TRUE)
+                                        resetFunctions = FALSE)
 
   message("Running the PF MCMC")
   #run MCMC
