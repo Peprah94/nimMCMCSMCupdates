@@ -8,6 +8,7 @@ baselineSpartaEstimation <- function(model, #nimbleModel
                                                       #lookahead = "mean",
                                                       smoothing = FALSE), #list of controls for particle filter
                                      nParFiltRun = NULL, #Number of PF runs
+                                     propCov = 'identity',
                                      latent #the latent variable
 ){
 
@@ -80,6 +81,7 @@ baselineSpartaEstimation <- function(model, #nimbleModel
                            control = list(latents = latent,
                                           pfControl = pfControl,
                                           pfNparticles = nParFiltRun,
+                                          propCov = propCov,
                                           pfType = pfType))
 
   modelMCMCconf$addMonitors(additionalPars)
@@ -462,9 +464,11 @@ spartaNimUpdates <- function(model, #nimbleModel
                              latent, #the latent variable
                              #newData,
                              postReducedMCMC,
-                             target,
-                             extraVars,
-                             mcmcScale
+                             target = NULL,
+                             extraVars = NULL,
+                             mcmcScale = 1,
+                             propCov = 'identity',
+                             propCov1 = 'identity'
 ){
 
   target = MCMCconfiguration[["target"]]
@@ -509,7 +513,12 @@ spartaNimUpdates <- function(model, #nimbleModel
 
   # model$setInits(inits)
   #}
-
+  ## set options to make history accessible
+  nimbleOptions(buildInterfacesForCompiledNestedNimbleFunctions = TRUE)
+  nimbleOptions(MCMCsaveHistory = TRUE)
+  ## Next, set up and run your MCMC.
+  ## Now access the history information:
+ ## only for RW_block
   #create new model for weights
   estimationModel <- model$newModel(replicate = TRUE)
 
@@ -546,7 +555,7 @@ spartaNimUpdates <- function(model, #nimbleModel
                                                                     control = pfControl)
    }else{
      particleFilter <- nimMCMCSMCupdates::buildAuxiliaryFilterUpdate(model,
-                                                              latent,
+                                                              nodes = latent,
                                                                target = target,
                                                                mvSamplesEst = mvSamplesEst,
                                                                control = pfControl)
@@ -560,10 +569,10 @@ spartaNimUpdates <- function(model, #nimbleModel
    }
 
   #checking if the updated pF works very well
-  #targetAsScalar <- sort(estimationModel$expandNodeNames(target, returnScalarComponents = TRUE))
+  targetAsScalar <- estimationModel$expandNodeNames(target, returnScalarComponents = TRUE)
   compiledParticleFilter <- compileNimble(estimationModel,  particleFilterEst)
 
-  compiledParticleFilter$particleFilterEst$run(m = 10000, iterRun = 100, storeModelValues = values(estimationModel, target))
+  compiledParticleFilter$particleFilterEst$run(m = 10000, iterRun = 100, storeModelValues = values(estimationModel, targetAsScalar))
 
 
 
@@ -590,7 +599,9 @@ if(pfType == "bootstrap"){
                            type = 'RW_PF_blockUpdate',
                            control = list(latents = latent,
                                           #target = target,
-                                          adaptive = FALSE,
+                                          adaptive = TRUE,
+                                          propCov = propCov,
+                                          propCov1 = propCov1,
                                           #adaptInterval = 100,
                                           scale = mcmcScale,
                                          # pf = particleFilter,
@@ -620,7 +631,7 @@ if(pfType == "bootstrap"){
                               #inits = initsList,
                               thin = n.thin,
                               setSeed = TRUE,
-                              samples=TRUE,
+                              samples= 123,
                               samplesAsCodaMCMC = TRUE,
                               summary = TRUE,
                               WAIC = FALSE)
@@ -628,6 +639,10 @@ if(pfType == "bootstrap"){
 
   timetaken1 <- timeEnd - timeStart1
   timetaken2 <- timeEnd - timeStart2
+
+  #compiledList$modelMCMC$samplerFunctions[[1]]$getScaleHistory()
+  #compiledList$modelMCMC$samplerFunctions[[1]]$getAcceptanceHistory()
+  #compiledList$modelMCMC$samplerFunctions[[1]]$getPropCovHistory()
 
   retList <- list()
   retList$timeRun <- timetaken2

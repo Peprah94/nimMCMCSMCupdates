@@ -283,7 +283,10 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
 
     # Get top parameters
     topParams <- model$getNodeNames(stochOnly=TRUE, includeData=FALSE, topOnly=TRUE)
-
+if(length(topParams) <5){
+  topParams <- topParams
+  trueParamsFALSE <- topParams
+}else{
     #Extract the true top parameters. Some of the top parameters depend
     # are intermediate
     trueTopParams <- sapply(topParams, function(x){
@@ -315,7 +318,9 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
 
     #Intermediary parameters
     topParamsInter <- unique(c(topParamsDeps[!topParamsDeps %in% c(model$expandNodeNames(latents), model$expandNodeNames(dataNodes))], trueParamsFALSE))
-print(topParamsInter)
+    print(topParamsInter)
+}
+
     #Extra vars to simulate
     #extraTargetVars <- topParamsInter[!grepl("[[1]]", topParamsInter)]
     # extraTargetVars <- extraTargetVars[!extraTargetVars %in% topParamsInter]
@@ -354,7 +359,7 @@ print(topParamsInter)
       extraVars <- model$expandNodeNames(node = extraVars)
       extraTargetVars <- extraVars[!grepl("[[1]]", extraVars)]
     }else{
-      extraTargetVars = NULL
+      extraTargetVars = targetAsScalar
     }
 
 
@@ -531,7 +536,7 @@ print(topParamsInter)
     modelLP1 <- particleLP + getLogProb(model, topParamsInter)
     #print(9)
     jump <- my_decideAndJump$run(modelLP1, modelLP0, 0, 0, iterRan)#, pfModelValues, predVals, topParamsVals)
-
+#print(jump)
     # if(!jump) {
     #   my_particleFilter$setLastLogLik(storeParticleLP)
     # }

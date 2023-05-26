@@ -17,14 +17,14 @@ auxStepVirtual2 <- nimble::nimbleFunctionVirtual(
   )
 )
 
-auxFuncVirtualUpdate <- nimbleFunctionVirtual(
+auxFuncVirtualUpdate <- nimble::nimbleFunctionVirtual(
   methods = list(
     lookahead = function(){}
   )
 )
 
-auxLookFuncUpdate  = nimbleFunction(
-  name = 'auxLookFuncUpdate ',
+auxLookFuncUpdate  = nimble::nimbleFunction(
+  name = 'auxLookFuncUpdate',
   contains = auxFuncVirtualUpdate ,
   setup = function(model, node){
   },
@@ -35,8 +35,8 @@ auxLookFuncUpdate  = nimbleFunction(
 )
 
 
-auxSimFuncUpdate  = nimbleFunction(
-  name = 'auxSimFuncUpdate ',
+auxSimFuncUpdate  = nimble::nimbleFunction(
+  name = 'auxSimFuncUpdate',
   contains = auxFuncVirtualUpdate ,
   setup = function(model, node){},
   methods = list(
@@ -92,16 +92,15 @@ auxFStepUpdate <- nimbleFunction(
       prevInd <- 1
     }
 #iterRun <- 1
-    auxFuncList <- nimbleFunctionList(auxFuncVirtual1 )
+    auxFuncList <- nimbleFunctionList(auxFuncVirtualUpdate)
     allLatentNodes <- model$expandNodeNames(calc_thisNode_self, sort = TRUE) ## They should already be sorted, but sorting here is a failsafe.
     numLatentNodes <- length(allLatentNodes)
     if(lookahead == "mean"){
       for(i in 1:numLatentNodes)
-        auxFuncList[[i]] <- auxLookFunc1(model, allLatentNodes[i])
-    }
-    else{
+        auxFuncList[[i]] <- auxLookFuncUpdate(model, allLatentNodes[i])
+    }else{
       for(i in 1:numLatentNodes)
-        auxFuncList[[i]] <- auxSimFunc1(model,  allLatentNodes)
+        auxFuncList[[i]] <- auxSimFuncUpdate(model,  allLatentNodes)
     }
     ess <- 0
     resamplerFunctionList <- nimbleFunctionList(resamplerVirtual)
@@ -126,7 +125,8 @@ auxFStepUpdate <- nimbleFunction(
     wts <- numeric(m, init=FALSE)
     ids <- integer(m, 0)
     ll <- numeric(m, init=FALSE)
-
+    #wts <- ids <- auxWts <- auxll <- ll <- numeric(m)
+    #out <- numeric(2)
     ## This is the look-ahead step, not conducted for first time-point.
     if(t > iNodePrev){
    values(model, targetNodesAsScalar) <<- storeModelValues
@@ -135,7 +135,7 @@ auxFStepUpdate <- nimbleFunction(
         if(smoothing == 1){
           ## smoothing is only allowed if saveAll is TRUE, so this should be ok.
           ## i.e., mvEWSamples have been resampled.
-          copy(mvEWSamples, mvWSamples, nodes = allPrevNodes,
+          nimCopy(mvEWSamples, mvWSamples, nodes = allPrevNodes,
                nodesTo = allPrevNodes, row = i, rowTo=i)
         }
         nimCopy(mvWSamples, model, prevXName, prevNode, row=i)
@@ -173,7 +173,7 @@ auxFStepUpdate <- nimbleFunction(
       }
       # Simulate from x_t+1 | x_t.
       model$simulate(calc_thisNode_self)
-      copy(model, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row=i)
+      nimCopy(model, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row=i)
       ## Get p(y_t+1 | x_t+1).
       ll[i] <- model$calculate(calc_thisNode_deps)
       if(is.nan(ll[i])){
@@ -257,8 +257,11 @@ auxFStepUpdate <- nimbleFunction(
          mvWSamples['auxlog',i][currInd] <<- outLL
        }
          #outLL <- 0
+       maxWt <- max(wts)
+       normWts <- exp(wts - maxWt)/sum(exp(wts - maxWt))
+       ess <<- 1/sum(normWts^2)
 
-         ess <<- 1/sum(wts^2)
+        # ess <<- 1/sum(wts^2)
         return(outLL)
      }
   },
@@ -365,7 +368,7 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
     if(is.null(saveAll)) saveAll <- FALSE
     if(is.null(smoothing)) smoothing <- FALSE
     if(is.null(lookahead)) lookahead <- 'simulate'
-    if(is.null(initModel)) initModel <- TRUE
+    if(is.null(initModel)) initModel <- FALSE
     if(!saveAll & smoothing) stop("must have saveAll = TRUE for smoothing to
                                   work")
     if(lookahead == "mean"){
@@ -459,7 +462,7 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
     lastLogLik <- -Inf
     runTime <- 1
 
-    iNodePrev <- iNodePrev - 1
+    #iNodePrev <- iNodePrev - 1
     #index <-
   },
   run = function(m = integer(default = 10000),

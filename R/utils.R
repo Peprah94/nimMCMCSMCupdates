@@ -170,6 +170,7 @@ mySetAndCalculateUpdate <- nimbleFunction(
     calcNodes <- model$getDependencies(target)
     latentDep <- model$getDependencies(latents)
     particleMVold <- my_particleFilter$mvEWSamples
+    extras <- is.null(extraTargetVars)
   },
   run = function(iterRan = integer()) {
     index <- ceiling(runif(1, 0, m))
@@ -178,7 +179,7 @@ mySetAndCalculateUpdate <- nimbleFunction(
 
     #for now, I am simulating the extraPars values, the idea is to use the previous values
     model$calculate()
-    model$simulate(extraTargetVars)
+  if(!extras)  model$simulate(extraTargetVars)
     model$calculate()
     #nimCopy(from = mvSamplesEst, to = model, nodes = calNodesStoch,row = iterRan)
     #model$simulate(calNodesStoch)
