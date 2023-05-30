@@ -514,8 +514,8 @@ spartaNimUpdates <- function(model, #nimbleModel
   # model$setInits(inits)
   #}
   ## set options to make history accessible
-  nimbleOptions(buildInterfacesForCompiledNestedNimbleFunctions = TRUE)
-  nimbleOptions(MCMCsaveHistory = TRUE)
+  #nimbleOptions(buildInterfacesForCompiledNestedNimbleFunctions = TRUE)
+  #nimbleOptions(MCMCsaveHistory = TRUE)
   ## Next, set up and run your MCMC.
   ## Now access the history information:
  ## only for RW_block

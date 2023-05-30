@@ -356,12 +356,16 @@ if(length(topParams) <5){
     topParamsInterDep <- model$getDependencies(topParamsInter, self = FALSE,  includeData = FALSE, stochOnly = TRUE)
 
     if(multiple){
+      if(!is.null(extraVars)){
       extraVars <- model$expandNodeNames(node = extraVars)
       extraTargetVars <- extraVars[!grepl("[[1]]", extraVars)]
+      }else{
+        extraTargetVars <- latents
+      }
     }else{
       extraTargetVars = targetAsScalar
     }
-
+print(extraTargetVars)
 
     if(multiple) target <- c(topParams, topParamsInter)
     ## numeric value generation
