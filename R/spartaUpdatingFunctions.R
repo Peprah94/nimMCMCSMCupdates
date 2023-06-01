@@ -599,7 +599,7 @@ if(pfType == "bootstrap"){
                            type = 'RW_PF_blockUpdate',
                            control = list(latents = latent,
                                           #target = target,
-                                          adaptive = TRUE,
+                                          adaptive = FALSE,
                                           propCov = propCov,
                                           propCov1 = propCov1,
                                           #adaptInterval = 100,
