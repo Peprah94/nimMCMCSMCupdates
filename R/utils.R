@@ -180,7 +180,7 @@ mySetAndCalculateUpdate <- nimbleFunction(
     #for now, I am simulating the extraPars values, the idea is to use the previous values
     model$calculate()
   if(!extras)  model$simulate(extraTargetVars)
-    if(!extras) nimCopy(from = mvSamplesEst, to = model, nodes = latents, row = iterRan)
+    if(!extras) nimCopy(from = mvSamplesEst, to = model, nodes = latents, row = iterRan, rowTo = 1)
     model$calculate()
     #nimCopy(from = mvSamplesEst, to = model, nodes = calNodesStoch,row = iterRan)
     #model$simulate(calNodesStoch)
