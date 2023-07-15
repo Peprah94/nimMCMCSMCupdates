@@ -399,8 +399,11 @@ if(length(topParams) <5){
       }
     }else{
       extraTargetVars = targetAsScalar
+      extraTargetStore <- targetAsScalar
     }
-print(extraTargetVars)
+#print(extraTargetVars)
+#print(storeOtherVals)
+#print(extraTargetStore)
 
     if(multiple) target <- c(topParams, topParamsInter)
     ## numeric value generation
