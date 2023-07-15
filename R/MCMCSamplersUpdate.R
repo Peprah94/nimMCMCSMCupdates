@@ -396,6 +396,7 @@ if(length(topParams) <5){
      storeOtherVals <- TRUE
       }else{
         extraTargetVars <- latents
+        extraTargetStore <- latents
       }
     }else{
       extraTargetVars = targetAsScalar
