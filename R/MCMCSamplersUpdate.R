@@ -255,6 +255,8 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     extraVars <- extractControlElement(control, 'extraVars', double())
     mvSamplesEst <- extractControlElement(control, 'mvSamplesEst', double())
     reducedModel <- extractControlElement(control, 'reducedModel', double())
+    iNodePrev <- extractControlElement(control, 'iNodePrev', 1)
+    additionalPars <- extractControlElement(control, 'additionalPars', double())
     #target <- extractControlElement(control, 'target', double())
 
     if('pfLookahead' %in% names(control)) {
@@ -311,13 +313,31 @@ if(length(topParams) <5){
     print(topParams)
     # Get dependencies of top Parameters
     topParamsDeps <- model$getDependencies(topParams, self = FALSE, includeData = FALSE, stochOnly = TRUE)
-
+    calcNodesTopParams <- model$getDependencies(topParams)
     #Get the data Node
     dataNodes <- model$getVarNames(nodes = model$getDependencies(latents, downstream = TRUE, stochOnly = TRUE, self = FALSE))
     #dataNodes <- dataNodes[model$isData(nodes = dataNodes)]
-
+    if(!is.null(extraVars)){
+      #extraVars <- model$expandNodeNames(node = extraVars)
+      #seqExtraVars <- paste0("[[", 1:iNodePrev, "]]")
+      extraTargetVarsWithAdditionalPars <- lapply(seq_along(extraVars), function(x){
+        extraVarsScalar <- model$expandNodeNames(node = extraVars[[x]])
+        extraVarsScalar[1 : iNodePrev]
+        #extraVars[!grepl(seqExtraVars[[x]], extraVars)]
+      })%>%
+        do.call("c",.)
+    }
     #Intermediary parameters
-    topParamsInter <- unique(c(topParamsDeps[!topParamsDeps %in% c(model$expandNodeNames(latents), model$expandNodeNames(dataNodes))], trueParamsFALSE))
+    if(is.null(extraVars)){
+    topParamsInter <- unique(c(topParamsDeps[!topParamsDeps %in% c(model$expandNodeNames(latents), model$expandNodeNames(dataNodes), model$expandNodeNames(additionalPars))], trueParamsFALSE))
+    }else{
+      topParamsInter <- unique(c(topParamsDeps[!topParamsDeps %in% c(model$expandNodeNames(latents),
+                                                                     model$expandNodeNames(dataNodes),
+                                                                     model$expandNodeNames(additionalPars),
+                                                                     extraTargetVarsWithAdditionalPars
+                                                                     )],
+                                 trueParamsFALSE))
+    }
     print(topParamsInter)
 }
 
@@ -354,11 +374,26 @@ if(length(topParams) <5){
     #let topParamsInter = targetAsScalar
     if(NotMultiple == TRUE) topParamsInter = targetAsScalar
     topParamsInterDep <- model$getDependencies(topParamsInter, self = FALSE,  includeData = FALSE, stochOnly = TRUE)
-
+    calcNodesTopParamsInter <- model$getDependencies(topParamsInterDep)
+    storeOtherVals <- FALSE
     if(multiple){
       if(!is.null(extraVars)){
-      extraVars <- model$expandNodeNames(node = extraVars)
-      extraTargetVars <- extraVars[!grepl("[[1]]", extraVars)]
+      #extraVars <- model$expandNodeNames(node = extraVars)
+      #seqExtraVars <- paste0("[[", 1:iNodePrev, "]]")
+      extraTargetVars <- lapply(seq_along(extraVars), function(x){
+        extraVarsScalar <- model$expandNodeNames(node = extraVars[[x]])
+        extraVarsScalar[(iNodePrev +1) : length(extraVarsScalar)]
+        #extraVars[!grepl(seqExtraVars[[x]], extraVars)]
+      })%>%
+        do.call("c",.)
+      extraAdditionalPars <- model$expandNodeNames(additionalPars[!additionalPars %in% latents])
+
+      stochExtraPars <- extraAdditionalPars[model$isStoch(extraAdditionalPars)]
+      #stochExtraParsNodeName <- model$getVarNames(nodes = stochExtraPars)
+      #extraTargetVars <- extraVars[!grepl(, extraVars)]
+     extraTargetStore <-  c(extraTargetVarsWithAdditionalPars,
+                            stochExtraPars)
+     storeOtherVals <- TRUE
       }else{
         extraTargetVars <- latents
       }
@@ -477,6 +512,7 @@ print(extraTargetVars)
     pfModelValues <- rep(0, length(latentAsScalar))
     targetModelValues <- rep(0, length(topParamsInter))
     topParamsValues <- rep(0, length(topParams))
+    storeModelVals <- rep(0, length(target))
     # topParsModelValues <- rep(0, length(topParams))
     #predVals <- rep(0, length(predictivePars))
     #topParamsVals <- rep(0, length(topParams))
@@ -511,7 +547,8 @@ print(extraTargetVars)
   },
   run = function() {
     iterRan <<- my_particleFilter$getLastTimeRan()
-    #print(iterRan)
+    print(iterRan)
+    if(storeOtherVals)  nimCopy(from = mvSamplesEst, to = model, row = iterRan, rowTo = 1, nodes = extraTargetStore, nodesTo = extraTargetStore)
     # Update top Pars
     #propValueVectorTopPars <- generateProposalVector(topParams)
     #MHAR for top Level pars
@@ -519,24 +556,26 @@ print(extraTargetVars)
     #print(2)
     #MHAR for additional pars
     storeParticleLP <<- my_setAndCalculateUpdate$run(iterRan)
-    #print(3)
+    print(storeParticleLP)
     #store values from reduced model
     pfModelValues <<- values(model, latentAsScalar)
     targetModelValues <<- values(model, topParamsInter)
     # print(4)
     if(multiple) topParamsValues <<- values(model, topParams)
+    #print(topParamsValues)
     #predVals <<- values(model, predictivePars)
     #topParamsVals <<- values(model, topParams)
     #print(5)
     modelLP0 <- storeParticleLP + getLogProb(model, topParamsInter)
     propValueVector <- generateProposalVector()
+   # print(propValueVector)
     #print(6)
     my_setAndCalculate$run(propValueVector)
     #add the topParams values to the proposal vector since it will enter the particle filter
-    if(multiple) propValueVector <- c(topParamsValues, propValueVector)
+    if(multiple) storeModelVals <<- c(topParamsValues, propValueVector)
     #print(7)
-    particleLP <- my_particleFilter$run(m = m, iterRun = iterRan, storeModelValues = propValueVector)
-    #print(8)
+    particleLP <- my_particleFilter$run(m = m, iterRun = iterRan, storeModelValues = storeModelVals)
+    print(particleLP)
     modelLP1 <- particleLP + getLogProb(model, topParamsInter)
     #print(9)
     jump <- my_decideAndJump$run(modelLP1, modelLP0, 0, 0, iterRan)#, pfModelValues, predVals, topParamsVals)
@@ -545,6 +584,7 @@ print(extraTargetVars)
     #   my_particleFilter$setLastLogLik(storeParticleLP)
     # }
     #print(10)
+    print(jump)
     if(jump ){#& latentSamp) {
       ## if we jump, randomly sample latent nodes from pf output and put
       ## into model so that they can be monitored
@@ -555,19 +595,23 @@ print(extraTargetVars)
       copy(particleMV, model, latents, latents, index)
       calculate(model, latentDep)
       copy(from = model, to = mvSaved, nodes = latentDep, row = 1, logProb = TRUE)
-    }
+      }
     else if(!jump ){#& latentSamp) {
       ## if we don't jump, replace model latent nodes with saved latent nodes
       values(model, latentAsScalar) <<- pfModelValues
+      #copy(from = mvSaved, to = model, nodes = latents, row = 1, logProb = TRUE)
       values(model, topParamsInter) <<- targetModelValues
       #nimCopy(from = mvSamplesEst, to = model, row = iterRan, nodes = topParams)
-      calculate(model)
+      #calculate(model)
+      model$calculate()
       #copy(from = model, to = mvSaved, nodes = latent)
       nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesDeterm1, logProb = FALSE)
       nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesStoch1, logProbOnly = TRUE)
-      nimCopy(from = model, to = mvSaved, row = 1, nodes = target, logProb = TRUE)
-      #copy(from = model, to = mvSaved, nodes = latentDep, row = 1, logProb = TRUE)
+      nimCopy(from = model, to = mvSaved, row = 1, nodes = topParamsInter, logProb = TRUE)
+      nimCopy(from = model, to = mvSaved, nodes = latentDep, row = 1, logProb = TRUE)
+      #nimCopy(from = mvSaved, to = model, nodes = latentDep, row = 1, logProb = TRUE)
     }
+    if(storeOtherVals) nimCopy(from = mvSamplesEst, to = mvSaved, row = iterRan, rowTo = 1, nodes = extraTargetStore, nodesTo = extraTargetStore)
     ##if(jump & !resample)  storeParticleLP <<- particleLP
     if(jump & optimizeM) optimM()
     if(adaptive)     adaptiveProcedure(jump)

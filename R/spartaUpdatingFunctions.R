@@ -203,9 +203,11 @@ spartaNimWeights <- function(model, #nimbleModel
       cMCMC = cMCMC
     }
     #
-    bMCMC <- buildMCMC(cMCMC, useConjugacy = FALSE)
+    bMCMC <- buildMCMC(cMCMC,
+                       useConjugacy = FALSE)
     #
-    coMCMC <- compileNimble(bMCMC, project = nMCompile)
+    coMCMC <- compileNimble(bMCMC,
+                            project = nMCompile)
     #
     timeStart2 <- Sys.time()
     mcmc.out <- runMCMC(coMCMC,
@@ -362,8 +364,10 @@ timetaken2 <- timeEnd - timeStart2
 updateUtils <- function(model, #reduced model
                         reducedModel,
                         mcmcOut,
+                        iNodeAll,
                         latent, target, n.iter, m, timeIndex){
 
+if(iNodeAll == FALSE){
 latentNodes <- model$expandNodeNames(latent)
 nodes <- findLatentNodes(model, latent, timeIndex)
 
@@ -449,6 +453,99 @@ for(iter in 1:n.iter){
 returnlist = list(
   mvSamplesEst = mvSamplesEst
 )
+}else{
+
+  latentNodes <- model$expandNodeNames(latent)
+  nodes <- findLatentNodes(model, latent, timeIndex)
+
+  lastNodes <- findLatentNodes(reducedModel, latent, timeIndex )
+  lastNode <- lastNodes[length(lastNodes)]
+extraNodes <- nodes[!nodes %in% lastNodes]
+extraNodes <- model$expandNodeNames(extraNodes)
+
+dims <- lapply(nodes[1:2], function(n) nimDim(model[[n]]))
+
+  target <- target[!target %in% latent]
+  if(length(unique(dims)) > 1)
+    stop('sizes or dimensions of latent states varies')
+  vars <- c(model$getVarNames(nodes =  nodes), target)
+
+  modelSymbolObjects <- model$getSymbolTable()$getSymbolObjects()[vars]
+
+  names <- sapply(modelSymbolObjects, function(x)return(x$name))
+  type <- sapply(modelSymbolObjects, function(x)return(x$type))
+  size <- lapply(modelSymbolObjects, function(x){
+    y <- x$size
+    t <- length(y)
+    rr <- c()
+    if(t > 1){
+      rr <- y
+    }else{
+      if(length(y)>0){
+        rr <- y
+      }else{
+        rr <- 1}
+    }
+    return(rr)
+  }
+  )
+
+  mvSamplesEst <- modelValues(modelValuesConf(vars = names,
+                                              types = type,
+                                              sizes = size))
+
+  #resize
+  resize(mvSamplesEst, n.iter)
+
+  message("Saving unsampled and sampled values in model values for updating")
+  for(iter in 1:n.iter){
+    for(j in 1:length(names)){
+      if(names[j] == latent & length(size[[1]]) > 1){
+        extraVars <- length(model$expandNodeNames(names[j])) == length(reducedModel$expandNodeNames(names[j]))
+        # extraVars <- model$expandNodeNames(names[j])[!model$expandNodeNames(names[j]) %in% reducedModel$expandNodeNames(names[j])]
+        if(!extraVars){
+          extraValues <- nimble::values(model, extraNodes)#rep(0, length(extraNodes))
+            #values(model, model$expandNodeNames(nodes[-1]))
+          #rep(0, length(model$expandNodeNames(nodes[-1])))
+          #names(extraValues) <- extraVars
+          allVals <- c(mcmcOut[iter, model$expandNodeNames(lastNodes)], extraValues)
+          names(allVals) <- model$expandNodeNames(nodes)
+          mvSamplesEst[[names[j]]][[iter]] <- matrix(allVals, nrow = size[[1]][1], ncol = size[[1]][2])
+        }else{
+
+          allVals <- mcmcOut[iter, reducedModel$expandNodeNames(names[j])]
+          mvSamplesEst[[names[j]]][[iter]] <- matrix(allVals, nrow = size[[1]][1], ncol = size[[1]][2])
+        }
+      }else{
+        extraVars <- length(model$expandNodeNames(names[j])) == length(reducedModel$expandNodeNames(names[j]))
+        #print(extraVars)
+        if(!extraVars){
+          if(names[j] == latent){
+            estValues <- c(mcmcOut[iter, lastNodes], rep(0, length(extraNodes)))
+            names(estValues) <- model$expandNodeNames(names[j])
+          }else{
+            namesExpanded <- reducedModel$expandNodeNames(names[j])
+            extraValNodes <- model$expandNodeNames(names[j])[!model$expandNodeNames(names[j]) %in% namesExpanded]
+            #lastName <- namesExpanded[length(namesExpanded)]
+            extraVals <- nimble::values(model, extraValNodes)#rep(0, (length(model$expandNodeNames(names[j])) - length(namesExpanded)))#values(model, (model$expandNodeNames(names[j]))[-1])
+            estValues <- c(mcmcOut[iter, namesExpanded ], extraVals)#rep(0, length(model$expandNodeNames(names[j]))-1))
+            names(estValues) <- model$expandNodeNames(names[j])
+          }
+        }else{
+          estValues <- c(mcmcOut[iter, model$expandNodeNames(names[j])])
+        }
+        mvSamplesEst[[names[j]]][[iter]] <-  estValues
+      }
+
+    }
+  }
+
+
+  returnlist = list(
+    mvSamplesEst = mvSamplesEst
+  )
+
+}
 return(returnlist)
 }
 
@@ -464,6 +561,7 @@ spartaNimUpdates <- function(model, #nimbleModel
                              latent, #the latent variable
                              #newData,
                              postReducedMCMC,
+                             iNodeAll = TRUE,
                              target = NULL,
                              extraVars = NULL,
                              mcmcScale = 1,
@@ -471,7 +569,8 @@ spartaNimUpdates <- function(model, #nimbleModel
                              propCov1 = 'identity'
 ){
 
-  target = MCMCconfiguration[["target"]]
+
+    target = MCMCconfiguration[["target"]]
   additionalPars = MCMCconfiguration[["additionalPars"]] #other dependent variables you seek to monitor
   n.iter = MCMCconfiguration[["n.iter"]]
   n.chains = MCMCconfiguration[["n.chains"]]
@@ -498,6 +597,7 @@ spartaNimUpdates <- function(model, #nimbleModel
               target = c(target, additionalPars),
               n.iter = n.iter ,
               m = nParFiltRun,
+              iNodeAll = TRUE,
               timeIndex = timeIndex)
 
   mvSamplesEst =  updateVars$mvSamplesEst #saved weights
@@ -569,10 +669,10 @@ spartaNimUpdates <- function(model, #nimbleModel
    }
 
   #checking if the updated pF works very well
-  #targetAsScalar <- estimationModel$expandNodeNames(target, returnScalarComponents = TRUE)
-  #compiledParticleFilter <- compileNimble(estimationModel,  particleFilterEst)
+  targetAsScalar <- estimationModel$expandNodeNames(target, returnScalarComponents = TRUE)
+  compiledParticleFilter <- compileNimble(estimationModel,  particleFilterEst)
 
-  #compiledParticleFilter$particleFilterEst$run(m = 10000, iterRun = 100, storeModelValues = values(estimationModel, targetAsScalar))
+  compiledParticleFilter$particleFilterEst$run(m = 100, iterRun = 10, storeModelValues = values(estimationModel, targetAsScalar))
 
 
 
@@ -611,6 +711,8 @@ if(pfType == "bootstrap"){
                                           postSamples = postReducedMCMC$samples[[chain.iter]],
                                            mvSamplesEst = mvSamplesEst,
                                          extraVars = extraVars,
+                                         iNodePrev = iNodePrev,
+                                         additionalPars = additionalPars,
                                           reducedModel = reducedModel)
   )
 

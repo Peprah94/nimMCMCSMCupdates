@@ -174,7 +174,7 @@ mySetAndCalculateUpdate <- nimbleFunction(
   },
   run = function(iterRan = integer()) {
     index <- ceiling(runif(1, 0, m))
-    nimCopy(from = mvSamplesEst, to = model, nodes = target,row = iterRan)
+    nimCopy(from = mvSamplesEst, to = model, nodes = topParamsInter, nodesTo = topParamsInter, row = iterRan, rowTo = 1)
     #nimCopy(from = mvSaved, to = model, nodes = extraTargetVars, row = 1)
 
     #for now, I am simulating the extraPars values, the idea is to use the previous values
@@ -186,8 +186,10 @@ mySetAndCalculateUpdate <- nimbleFunction(
     #model$simulate(calNodesStoch)
     # model$calculate()
     lp <-  my_particleFilter$run(m = m, iterRun = iterRan, storeModelValues = values(model, target))
-    nimCopy(from =  particleMVold, to = model, latents, latents, row = index)
-    calculate(model, latentDep)
+    print(lp)
+    nimCopy(from =  particleMVold, to = model, latents, latents, row = index, rowTo = 1)
+    #calculate(model, latentDep)
+    model$calculate()
     copy(from = model, to = mvSaved, nodes = latentDep, row = 1, logProb = TRUE)
     #simulate(model)
     #calculate(model, latentDep)

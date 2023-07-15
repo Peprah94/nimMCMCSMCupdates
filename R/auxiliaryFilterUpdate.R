@@ -54,6 +54,7 @@ auxFStepUpdate <- nimbleFunction(
                    saveAll, smoothing, lookahead, resamplingMethod,
                    silent = TRUE,
                    iNodePrev, target,
+                   latent,
                    mvSamplesEst) {
     notFirst <- iNode != 1
     last <- iNode == length(nodes)
@@ -66,6 +67,13 @@ auxFStepUpdate <- nimbleFunction(
     targetNodesAsScalar <- model$expandNodeNames(target, returnScalarComponents = TRUE)
     ## prevDeterm <- model$getDependencies(prevNode, determOnly = TRUE)
     thisNode <- nodes[iNode]
+
+    isAllData <- latent == "z"
+
+    #all(model$isData(calc_thisNode_self) == TRUE)
+    calc_thisNode_self1 <- calc_thisNode_self[!model$isData(calc_thisNode_self)]
+    calc_thisNode_self2 <- calc_thisNode_self[model$isData(calc_thisNode_self)]
+    calc_thisNode_self2Vals <- rep(1, length(calc_thisNode_self2))
     ## thisDeterm <- model$getDependencies(thisNode, determOnly = TRUE)
     ## thisData   <- model$getDependencies(thisNode, dataOnly = TRUE)
     ## t is the current time point.
@@ -171,8 +179,18 @@ auxFStepUpdate <- nimbleFunction(
                 row = ids[i])
         model$calculate(prevDeterm)
       }
+
       # Simulate from x_t+1 | x_t.
-      model$simulate(calc_thisNode_self)
+      # treat z as data for y>1 and simuate for y = 0
+      if(isAllData){
+        #calc_thisNode_self1 <- calc_thisNode_self[!model$isData(calc_thisNode_self)]
+        model$simulate(calc_thisNode_self1)
+        values(model, calc_thisNode_self2) <<- calc_thisNode_self2Vals
+        print(values(model, calc_thisNode_self2))
+      }else{
+        model$simulate(calc_thisNode_self)
+      }
+      #model$simulate(calc_thisNode_self)
       nimCopy(model, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row=i)
       ## Get p(y_t+1 | x_t+1).
       ll[i] <- model$calculate(calc_thisNode_deps)
@@ -362,7 +380,7 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
     iNodePrev <- control[['iNodePrev']]
     initModel <- control[['initModel']]
     M <- control[['M']]
-    #latent <- nodes
+    latent <- nodes
     resamplingMethod <- control[['resamplingMethod']]
     if(is.null(silent)) silent <- TRUE
     if(is.null(saveAll)) saveAll <- FALSE
@@ -381,6 +399,7 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
     else if(lookahead != "simulate"){
       stop("lookahead argument must be either 'simulate' or 'mean'")
     }
+
     if(is.null(resamplingMethod)) resamplingMethod <- 'default'
     if(!(resamplingMethod %in% c('default', 'multinomial', 'systematic', 'stratified',
                                  'residual')))
@@ -414,6 +433,7 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
       mvEWSamples <- modelValues(modelValuesConf(vars = names,
                                                  types = type,
                                                  sizes = size))
+
       #latent <- names
       names <- c(names, "wts", "auxlog")
       type <- c(type, "double", "double")
@@ -456,6 +476,7 @@ buildAuxiliaryFilterUpdate <- nimbleFunction(
                                                    silent,
                                                    iNodePrev,
                                                    target,
+                                                   latent,
                                                    mvSamplesEst)
 
     essVals <- rep(0, length(nodes))

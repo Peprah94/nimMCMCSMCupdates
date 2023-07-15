@@ -38,6 +38,15 @@ bootFStepUpdate <- nimbleFunction(
       calc_thisNode_self <- modelSteps$calc_thisNode_self
       calc_thisNode_deps <- modelSteps$calc_thisNode_deps
 
+      #calc_thisNode_deps <- calc_thisNode_deps[model$isData(calc_thisNode_deps)]
+
+      #select data
+      isAllData <- latent == "z"
+
+        #all(model$isData(calc_thisNode_self) == TRUE)
+      calc_thisNode_self1 <- calc_thisNode_self[!model$isData(calc_thisNode_self)]
+      calc_thisNode_self2 <- calc_thisNode_self[model$isData(calc_thisNode_self)]
+      calc_thisNode_self2Vals <- rep(1, length(calc_thisNode_self2))
       targetNodesAsScalar <- model$expandNodeNames(target, returnScalarComponents = TRUE)
       prevNode <- nodes[if(notFirst) iNode-1 else iNode]
       thisNode <- nodes[iNode]
@@ -51,7 +60,7 @@ bootFStepUpdate <- nimbleFunction(
       thisXName <- thisNode
       currInd <- t
       prevInd <- t-1
-      if(isTRUE(smoothing)){
+       if(isTRUE(smoothing)){
         currInd <- 1
         prevInd <- 1
       }
@@ -96,19 +105,27 @@ bootFStepUpdate <- nimbleFunction(
    # print(t + 1)
 
     if(t > iNodePrev){
-    for(i in 1:m) {
       values(model, targetNodesAsScalar) <<- storeModelValues
+    for(i in 1:m) {
       if(notFirst) {
         if(smoothing == 1){
           nimCopy(mvEWSamples, mvWSamples, nodes = allPrevNodes,
                nodesTo = allPrevNodes, row = i, rowTo=i)
         }
         nimCopy(mvEWSamples, model, nodes = prevXName, nodesTo = prevNode, row = i)
-        model$calculate(prevDeterm)
+        model$calculate()
         }
       #}
+      #isAllData <- all(model$isData(calc_thisNode_self) == TRUE)
+      if(isAllData){
+        #calc_thisNode_self1 <- calc_thisNode_self[!model$isData(calc_thisNode_self)]
+        model$simulate(calc_thisNode_self1)
+        values(model, calc_thisNode_self2) <<- calc_thisNode_self2Vals
+        print(values(model, calc_thisNode_self2))
+      }else{
+model$simulate(calc_thisNode_self)
+      }
 
-      model$simulate(calc_thisNode_self)
       #model$simulate(calc_thisNode_deps)
       ## The logProbs of calc_thisNode_self are, correctly, not calculated.
       nimCopy(model, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
@@ -183,6 +200,7 @@ bootFStepUpdate <- nimbleFunction(
     for(i in 1:m){
       mvWSamples['bootLL',i][currInd] <<- out[1]
     }
+    #print(out)
     return(out)
     }else{
       # for t < iNodePrev
@@ -347,7 +365,7 @@ buildBootstrapFilterUpdate <- nimbleFunction(
     if(is.null(silent)) silent <- TRUE
     if(is.null(saveAll)) saveAll <- FALSE
     if(is.null(smoothing)) smoothing <- FALSE
-    if(is.null(initModel)) initModel <- FALSE
+    if(is.null(initModel)) initModel <- TRUE
     if(is.null(resamplingMethod)) resamplingMethod <- 'default'
     if(!(resamplingMethod %in% c('default', 'multinomial', 'systematic', 'stratified',
                                  'residual')))
