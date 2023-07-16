@@ -179,14 +179,14 @@ mySetAndCalculateUpdate <- nimbleFunction(
 
     #for now, I am simulating the extraPars values, the idea is to use the previous values
     model$calculate()
-    if(!extras) model$simulate(extraTargetVars)
+    if(!extras) nimCopy(from = mvSaved, to = model, nodes = extraTargetVars, nodesTo = extraTargetVars, row = 1)#model$simulate(extraTargetVars)
     #if(extras) nimCopy(from = mvSamplesEst, to = model, nodes = latents, row = iterRan, rowTo = 1)
     model$calculate()
     #nimCopy(from = mvSamplesEst, to = model, nodes = calNodesStoch,row = iterRan)
     #model$simulate(calNodesStoch)
     # model$calculate()
     lp <-  my_particleFilter$run(m = m, iterRun = iterRan, storeModelValues = values(model, target))
-    print(lp)
+    #print(lp)
     nimCopy(from =  particleMVold, to = model, latents, latents, row = index, rowTo = 1)
     #calculate(model, latentDep)
     model$calculate()

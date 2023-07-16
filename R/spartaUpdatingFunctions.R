@@ -778,4 +778,21 @@ retList$timeRun <- timetakenRun
   return(retList)
 }
 
+replicateMCMCchains <- function(mcmcout, N, nChains){
+
+  for(j in 1:nChains){
+    nRows <- nrow(mcmcout$samples[[j]])
+    nCols <- ncol(mcmcout$samples[[j]])
+    samplingSamples <- sample(1:nRows, N, replace = TRUE)
+    newMatrix <- matrix(NA, nrow = N, ncol = nCols)
+    colnames(newMatrix) <- colnames(mcmcout$samples[[j]])
+    for(i in 1:N){
+      newMatrix[i,] <-  mcmcout$samples[[j]][samplingSamples[i],]
+    }
+    mcmcout$samples[[j]] <- newMatrix
+  }
+  return(mcmcout)
+
+}
+
 
