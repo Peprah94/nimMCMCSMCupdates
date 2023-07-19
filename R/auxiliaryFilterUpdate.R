@@ -186,7 +186,7 @@ auxFStepUpdate <- nimbleFunction(
         #calc_thisNode_self1 <- calc_thisNode_self[!model$isData(calc_thisNode_self)]
         model$simulate(calc_thisNode_self1)
         values(model, calc_thisNode_self2) <<- calc_thisNode_self2Vals
-        print(values(model, calc_thisNode_self2))
+        #print(values(model, calc_thisNode_self2))
       }else{
         model$simulate(calc_thisNode_self)
       }
@@ -251,36 +251,144 @@ auxFStepUpdate <- nimbleFunction(
     return(outLL)
      }else{
 # for t < iNodePrev
-       nimCopy(from = mvSamplesEst, to = model, nodes = target,row = iterRun)
+       nimCopy(from = mvSamplesEst, to = model, nodes = target, row = iterRun, rowTo = 1)
+       if(notFirst){
+         for(i in 1:m) {
+           if(smoothing == 1){
+             ## smoothing is only allowed if saveAll is TRUE, so this should be ok.
+             ## i.e., mvEWSamples have been resampled.
+             nimCopy(mvEWSamples, mvWSamples, nodes = allPrevNodes,
+                     nodesTo = allPrevNodes, row = i, rowTo=i)
+           }
+           nimCopy(mvWSamples, model, prevXName, prevNode, row=i)
+           model$calculate(prevDeterm)
+           ## The lookahead steps may include determ and stoch steps.
+           if(lookahead == "mean"){
+             for(j in 1:numLatentNodes)
+               auxFuncList[[j]]$lookahead()
+           } else auxFuncList[[1]]$lookahead()
+
+           ## Get p(y_t+1 | x_t+1).
+           auxll[i] <- model$calculate(calc_thisNode_deps)
+           if(is.nan(auxll[i])){
+             return(-Inf)
+           }
+           ## Multiply (on log scale) by weight from time t.
+           auxWts[i] <- auxll[i] + mvWSamples['wts',i][prevInd]
+         }
+       }
+
        for(i in 1:m) {
-             nimCopy(mvSamplesEst, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
-             nimCopy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
-           wts[i] <- 1
-      # }
+         if(notFirst) {
+           nimCopy(mvWSamples, model, nodes = prevXName, nodesTo = prevNode,
+                   row = i)
+           model$calculate(prevDeterm)
+         }
 
+         # Simulate from x_t+1 | x_t.
+         # treat z as data for y>1 and simuate for y = 0
+         if(isAllData){
+           #calc_thisNode_self1 <- calc_thisNode_self[!model$isData(calc_thisNode_self)]
+           #model$simulate(calc_thisNode_self1)
+           nimCopy(mvSamplesEst, model, nodes = calc_thisNode_self1, nodesTo = calc_thisNode_self1, row = iterRun, rowTo = i)
+           values(model, calc_thisNode_self2) <<- calc_thisNode_self2Vals
+           #print(values(model, calc_thisNode_self2))
+         }else{
+           nimCopy(mvSamplesEst, model, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
+         }
 
-       if(notFirst) {
-         model$calculate(prevDeterm)
+         #nimCopy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
+         #model$simulate(calc_thisNode_self)
+         nimCopy(model, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row=i)
+         ## Get p(y_t+1 | x_t+1).
+         ll[i] <- model$calculate(calc_thisNode_deps)
+         if(is.nan(ll[i])){
+           return(-Inf)
+         }
+         if(notFirst){
+           ## Construct weight following step 4 of paper.
+           wts[i] <- ll[i]-auxll[i]
+         }
+         else{
+           ## First step has no auxiliary weights.
+           wts[i] <- ll[i]
+         }
        }
-
-      #for(i in 1:m){
-         ## Save weights for use in next timepoint's look-ahead step.
-         mvWSamples['wts', i][currInd] <<- 1
-       }
-
-       maxWt <- max(wts)
-       outLL <- log(sum(exp(wts - maxWt))) + maxWt - log(m)
-
-       for(i in 1:m){
-         mvWSamples['auxlog',i][currInd] <<- outLL
-       }
-         #outLL <- 0
+       ## Use log-sum-exp trick to avoid underflow.
        maxWt <- max(wts)
        normWts <- exp(wts - maxWt)/sum(exp(wts - maxWt))
        ess <<- 1/sum(normWts^2)
+       for(i in 1:m){
+         ## Save weights for use in next timepoint's look-ahead step.
+         mvWSamples['wts', i][currInd] <<- log(normWts[i])
+       }
 
-        # ess <<- 1/sum(wts^2)
-        return(outLL)
+       for(i in 1:m){
+         copy(mvEWSamples, mvWSamples, thisXName, thisXName, row = i,  rowTo = i)
+       }
+
+       if(saveAll | last) {
+         for(i in 1:m) {
+           copy(mvWSamples, mvEWSamples, thisXName, thisXName, i, i)
+       }
+       }
+       ## Calculate likelihood p(y_t+1 | y_1:t) as in equation (3) of paper.
+       ## Use log-sum-exp trick to avoid underflow.
+       if(notFirst){
+         maxWt <- max(wts)
+         maxAuxWt <- max(auxWts)
+         outLL <- log(sum(exp(wts - maxWt))) + maxWt - log(m) + log(sum(exp(auxWts - maxAuxWt))) + maxAuxWt
+       } else {
+         maxWt <- max(wts)
+         outLL <- log(sum(exp(wts - maxWt))) + maxWt - log(m)
+       }
+       for(i in 1:m){
+         mvWSamples['auxlog',i][currInd] <<- outLL
+       }
+       return(outLL)
+
+
+
+
+
+
+
+
+
+
+      #
+      #
+      #
+      #  nimCopy(from = mvSamplesEst, to = model, nodes = target,row = iterRun)
+      #  for(i in 1:m) {
+      #        nimCopy(mvSamplesEst, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
+      #        nimCopy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
+      #      wts[i] <- 1
+      # # }
+      #
+      #
+      #  if(notFirst) {
+      #    model$calculate(prevDeterm)
+      #  }
+      #
+      # #for(i in 1:m){
+      #    ## Save weights for use in next timepoint's look-ahead step.
+      #    mvWSamples['wts', i][currInd] <<- 1
+      #  }
+      #
+      #  maxWt <- max(wts)
+      #  outLL <- log(sum(exp(wts - maxWt))) + maxWt - log(m)
+      #
+      #  for(i in 1:m){
+      #    mvWSamples['auxlog',i][currInd] <<- outLL
+      #  }
+      #    #outLL <- 0
+      #  maxWt <- max(wts)
+      #  normWts <- exp(wts - maxWt)/sum(exp(wts - maxWt))
+      #  ess <<- 1/sum(normWts^2)
+      #
+      #   # ess <<- 1/sum(wts^2)
+      #   return(outLL)
      }
   },
   methods = list(
