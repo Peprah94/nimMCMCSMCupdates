@@ -294,7 +294,7 @@ auxFStepUpdate <- nimbleFunction(
            values(model, calc_thisNode_self2) <<- calc_thisNode_self2Vals
            #print(values(model, calc_thisNode_self2))
          }else{
-           nimCopy(mvSamplesEst, model, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
+           nimCopy(mvSamplesEst, model, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = 1)
          }
 
          #nimCopy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
