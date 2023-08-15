@@ -185,7 +185,7 @@ mySetAndCalculateUpdate <- nimbleFunction(
     #nimCopy(from = mvSamplesEst, to = model, nodes = calNodesStoch,row = iterRan)
     #model$simulate(calNodesStoch)
     # model$calculate()
-    lp <-  my_particleFilter$run(m = m, iterRun = iterRan, storeModelValues = values(model, target))
+    lp <-  my_particleFilter$run(m = m, iterRun = iterRan, storeModelValues = values(model, targetNodesAsScalar))
     #print(lp)
     nimCopy(from =  particleMVold, to = model, latents, latents, row = index, rowTo = 1)
     #calculate(model, latentDep)

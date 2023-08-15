@@ -355,6 +355,7 @@ if(length(topParams) <5){
     #   multiple <- FALSE
     # }
 
+    # check whether topParams is the same as length
     NotMultiple <- length(topParams) == length(target)
 
     if(NotMultiple == FALSE){
@@ -372,7 +373,7 @@ if(length(topParams) <5){
 
     #if we have don't have multiple,
     #let topParamsInter = targetAsScalar
-    if(NotMultiple == TRUE) topParamsInter = targetAsScalar
+    if(NotMultiple == TRUE) topParamsInter <- targetAsScalar
     topParamsInterDep <- model$getDependencies(topParamsInter, self = FALSE,  includeData = FALSE, stochOnly = TRUE)
     calcNodesTopParamsInter <- model$getDependencies(topParamsInterDep)
     storeOtherVals <- FALSE
@@ -551,7 +552,7 @@ if(length(topParams) <5){
   },
   run = function() {
     iterRan <<- my_particleFilter$getLastTimeRan()
-    print(iterRan)
+    #print(iterRan)
     if(storeOtherVals)  nimCopy(from = mvSamplesEst, to = model, row = iterRan, rowTo = 1, nodes = extraTargetStore, nodesTo = extraTargetStore)
     # Update top Pars
     #propValueVectorTopPars <- generateProposalVector(topParams)
@@ -559,8 +560,9 @@ if(length(topParams) <5){
     if(multiple) my_sampleTopPars$run(iterRan)
     #print(2)
     #MHAR for additional pars
-    storeParticleLP <<- my_setAndCalculateUpdate$run(iterRan)
-    print(storeParticleLP)
+    if(multiple) storeParticleLP <<- my_setAndCalculateUpdate$run(iterRan)
+    if(!multiple) storeParticleLP <<- my_particleFilter$getLastLogLik()
+    #print(storeParticleLP)
     #store values from reduced model
     pfModelValues <<- values(model, latentAsScalar)
     targetModelValues <<- values(model, topParamsInter)
@@ -577,9 +579,10 @@ if(length(topParams) <5){
     my_setAndCalculate$run(propValueVector)
     #add the topParams values to the proposal vector since it will enter the particle filter
     if(multiple) storeModelVals <<- c(topParamsValues, propValueVector)
+    if(!multiple) storeModelVals <<- propValueVector
     #print(7)
-    particleLP <- my_particleFilter$run(m = m, iterRun = iterRan, storeModelValues = storeModelVals)
-    print(particleLP)
+    particleLP <- my_particleFilter$run(m = m, iterRun = iterRan, storeModelValues = values(model, targetAsScalar))
+   # print(particleLP)
     modelLP1 <- particleLP + getLogProb(model, topParamsInter)
     #print(9)
     jump <- my_decideAndJump$run(modelLP1, modelLP0, 0, 0, iterRan)#, pfModelValues, predVals, topParamsVals)
@@ -588,7 +591,7 @@ if(length(topParams) <5){
     #   my_particleFilter$setLastLogLik(storeParticleLP)
     # }
     #print(10)
-    print(jump)
+    #print(jump)
     if(jump ){#& latentSamp) {
       ## if we jump, randomly sample latent nodes from pf output and put
       ## into model so that they can be monitored
@@ -601,11 +604,12 @@ if(length(topParams) <5){
       copy(from = model, to = mvSaved, nodes = latentDep, row = 1, logProb = TRUE)
       }
     else if(!jump ){#& latentSamp) {
+      my_particleFilter$setLastLogLik(storeParticleLP)
       ## if we don't jump, replace model latent nodes with saved latent nodes
       values(model, latentAsScalar) <<- pfModelValues
       #copy(from = mvSaved, to = model, nodes = latents, row = 1, logProb = TRUE)
       values(model, topParamsInter) <<- targetModelValues
-      #nimCopy(from = mvSamplesEst, to = model, row = iterRan, nodes = topParams)
+      if(multiple) nimCopy(from = mvSamplesEst, to = model, row = iterRan, nodes = topParams)
       #calculate(model)
       model$calculate()
       #copy(from = model, to = mvSaved, nodes = latent)
@@ -630,7 +634,7 @@ if(length(topParams) <5){
       declare(LLEst, double(1, nVarReps))
       if(nVarEsts < mBurnIn) {  # checks whether we have enough var estimates to get good approximation
         for(i in 1:nVarReps)
-          LLEst[i] <- my_particleFilter$run(m = tempM, iterRun = iterRan, storeModelValues = values(model, topParamsInter))
+          LLEst[i] <- my_particleFilter$run(m = tempM, iterRun = iterRan, storeModelValues = values(model, targetAsScalar))
         ## next, store average of var estimates
         if(nVarEsts == 1)
           storeLLVar <<- var(LLEst)/mBurnIn
@@ -644,7 +648,7 @@ if(length(topParams) <5){
       else {  # once enough var estimates have been taken, use their average to compute m
         m <<- m*storeLLVar/(0.92^2)
         m <<- ceiling(m)
-        storeParticleLP <<- my_particleFilter$run(m, iterRun = iterRan, storeModelValues = values(model, target))
+        storeParticleLP <<- my_particleFilter$run(m, iterRun = iterRan, storeModelValues = values(model, targetAsScalar))
         optimizeM <<- 0
       }
     },

@@ -121,7 +121,7 @@ bootFStepUpdate <- nimbleFunction(
         #calc_thisNode_self1 <- calc_thisNode_self[!model$isData(calc_thisNode_self)]
         model$simulate(calc_thisNode_self1)
         values(model, calc_thisNode_self2) <<- calc_thisNode_self2Vals
-        print(values(model, calc_thisNode_self2))
+       # print(values(model, calc_thisNode_self2))
       }else{
 model$simulate(calc_thisNode_self)
       }
@@ -205,7 +205,7 @@ model$simulate(calc_thisNode_self)
     }else{
       # for t < iNodePrev
       # Copy the target values into the model too
-      nimCopy(from = mvSamplesEst, to = model, nodes = target,row = iterRun, rowTo = 1)
+      nimCopy(from = mvSamplesEst, to = model, nodes = target, row = iterRun, rowTo = 1)
 
       #update the deterministic vars
       if(notFirst) {
@@ -235,16 +235,16 @@ model$simulate(calc_thisNode_self)
 
 
         #out[1] <- stepllEst
-        if(is.nan(stepllEst)){
-          out[1] <- -Inf
-          out[2] <- 0
-          return(out)
-        }
-        if(stepllEst == Inf | stepllEst == -Inf){
-          out[1] <- -Inf
-          out[2] <- 0
-          return(out)
-        }
+        # if(is.nan(stepllEst)){
+        #   out[1] <- -Inf
+        #   out[2] <- 0
+        #   return(out)
+        # }
+        # if(stepllEst == Inf | stepllEst == -Inf){
+        #   out[1] <- -Inf
+        #   out[2] <- 0
+        #   return(out)
+        # }
 
       out[1] <- stepllEst
       out[2] <- 1
@@ -365,7 +365,7 @@ buildBootstrapFilterUpdate <- nimbleFunction(
     if(is.null(silent)) silent <- TRUE
     if(is.null(saveAll)) saveAll <- FALSE
     if(is.null(smoothing)) smoothing <- FALSE
-    if(is.null(initModel)) initModel <- TRUE
+    if(is.null(initModel)) initModel <- FALSE
     if(is.null(resamplingMethod)) resamplingMethod <- 'default'
     if(!(resamplingMethod %in% c('default', 'multinomial', 'systematic', 'stratified',
                                  'residual')))

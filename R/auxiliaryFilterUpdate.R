@@ -248,42 +248,43 @@ auxFStepUpdate <- nimbleFunction(
     for(i in 1:m){
       mvWSamples['auxlog',i][currInd] <<- outLL
     }
+
     return(outLL)
      }else{
 # for t < iNodePrev
        nimCopy(from = mvSamplesEst, to = model, nodes = target, row = iterRun, rowTo = 1)
-       if(notFirst){
-         for(i in 1:m) {
-           if(smoothing == 1){
-             ## smoothing is only allowed if saveAll is TRUE, so this should be ok.
-             ## i.e., mvEWSamples have been resampled.
-             nimCopy(mvEWSamples, mvWSamples, nodes = allPrevNodes,
-                     nodesTo = allPrevNodes, row = i, rowTo=i)
-           }
-           nimCopy(mvWSamples, model, prevXName, prevNode, row=i)
-           model$calculate(prevDeterm)
-           ## The lookahead steps may include determ and stoch steps.
-           if(lookahead == "mean"){
-             for(j in 1:numLatentNodes)
-               auxFuncList[[j]]$lookahead()
-           } else auxFuncList[[1]]$lookahead()
-
-           ## Get p(y_t+1 | x_t+1).
-           auxll[i] <- model$calculate(calc_thisNode_deps)
-           if(is.nan(auxll[i])){
-             return(-Inf)
-           }
-           ## Multiply (on log scale) by weight from time t.
-           auxWts[i] <- auxll[i] + mvWSamples['wts',i][prevInd]
-         }
-       }
-
-       for(i in 1:m) {
-         if(notFirst) {
-           nimCopy(mvWSamples, model, nodes = prevXName, nodesTo = prevNode,
-                   row = i)
-           model$calculate(prevDeterm)
-         }
+       # if(notFirst){
+          for(i in 1:m) {
+       #     if(smoothing == 1){
+       #       ## smoothing is only allowed if saveAll is TRUE, so this should be ok.
+       #       ## i.e., mvEWSamples have been resampled.
+       #       nimCopy(mvEWSamples, mvWSamples, nodes = allPrevNodes,
+       #               nodesTo = allPrevNodes, row = i, rowTo=i)
+       #     }
+       #     nimCopy(mvWSamples, model, prevXName, prevNode, row=i)
+       #     model$calculate(prevDeterm)
+       #     ## The lookahead steps may include determ and stoch steps.
+       #     if(lookahead == "mean"){
+       #       for(j in 1:numLatentNodes)
+       #         auxFuncList[[j]]$lookahead()
+       #     } else auxFuncList[[1]]$lookahead()
+       #
+       #     ## Get p(y_t+1 | x_t+1).
+       #     auxll[i] <- model$calculate(calc_thisNode_deps)
+       #     if(is.nan(auxll[i])){
+       #       return(-Inf)
+       #     }
+       #     ## Multiply (on log scale) by weight from time t.
+       #     auxWts[i] <- auxll[i] + mvWSamples['wts',i][prevInd]
+       #   }
+       # }
+       #
+       # for(i in 1:m) {
+       #   if(notFirst) {
+       #     nimCopy(mvWSamples, model, nodes = prevXName, nodesTo = prevNode,
+       #             row = i)
+       #     model$calculate(prevDeterm)
+       #   }
 
          # Simulate from x_t+1 | x_t.
          # treat z as data for y>1 and simuate for y = 0
@@ -301,18 +302,20 @@ auxFStepUpdate <- nimbleFunction(
          #model$simulate(calc_thisNode_self)
          nimCopy(model, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row=i)
          ## Get p(y_t+1 | x_t+1).
-         ll[i] <- model$calculate(calc_thisNode_deps)
-         if(is.nan(ll[i])){
-           return(-Inf)
-         }
-         if(notFirst){
-           ## Construct weight following step 4 of paper.
-           wts[i] <- ll[i]-auxll[i]
-         }
-         else{
-           ## First step has no auxiliary weights.
-           wts[i] <- ll[i]
-         }
+         # ll[i] <- model$calculate(calc_thisNode_deps)
+         # if(is.nan(ll[i])){
+         #   return(-Inf)
+         # }
+         # if(notFirst){
+         #   ## Construct weight following step 4 of paper.
+         #   wts[i] <- ll[i]-auxll[i]
+         # }
+         # else{
+         #   ## First step has no auxiliary weights.
+         #   wts[i] <- ll[i]
+         # }
+
+         wts[i] <- 1
        }
        ## Use log-sum-exp trick to avoid underflow.
        maxWt <- max(wts)
@@ -321,11 +324,9 @@ auxFStepUpdate <- nimbleFunction(
        for(i in 1:m){
          ## Save weights for use in next timepoint's look-ahead step.
          mvWSamples['wts', i][currInd] <<- log(normWts[i])
-       }
-
-       for(i in 1:m){
          copy(mvEWSamples, mvWSamples, thisXName, thisXName, row = i,  rowTo = i)
        }
+
 
        if(saveAll | last) {
          for(i in 1:m) {
@@ -334,14 +335,9 @@ auxFStepUpdate <- nimbleFunction(
        }
        ## Calculate likelihood p(y_t+1 | y_1:t) as in equation (3) of paper.
        ## Use log-sum-exp trick to avoid underflow.
-       if(notFirst){
-         maxWt <- max(wts)
-         maxAuxWt <- max(auxWts)
-         outLL <- log(sum(exp(wts - maxWt))) + maxWt - log(m) + log(sum(exp(auxWts - maxAuxWt))) + maxAuxWt
-       } else {
          maxWt <- max(wts)
          outLL <- log(sum(exp(wts - maxWt))) + maxWt - log(m)
-       }
+
        for(i in 1:m){
          mvWSamples['auxlog',i][currInd] <<- outLL
        }

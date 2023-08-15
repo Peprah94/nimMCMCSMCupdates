@@ -91,8 +91,8 @@ pfTypeRun = "auxiliary"
                                  constants = constants,
                                  inits = inits,
                                  check = FALSE)
-  nIterations = 100
-  nBurnin = 10
+  nIterations = 100000
+  nBurnin = 90000
   nChains = 2
   nThin = 1
   # Fit reduced model with MCMC
