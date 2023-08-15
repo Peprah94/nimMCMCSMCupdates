@@ -407,7 +407,7 @@ if(length(topParams) <5){
 #print(storeOtherVals)
 #print(extraTargetStore)
 
-    if(multiple) target <- c(topParams, topParamsInter)
+    #if(multiple) target <- c(topParams, topParamsInter)
     ## numeric value generation
     optimizeM     <- as.integer(optimizeM)
     scaleOriginal <- scale
@@ -517,7 +517,7 @@ if(length(topParams) <5){
     pfModelValues <- rep(0, length(latentAsScalar))
     targetModelValues <- rep(0, length(topParamsInter))
     topParamsValues <- rep(0, length(topParams))
-    storeModelVals <- rep(0, length(target))
+    storeModelVals <- rep(0, length(targetAsScalar))
     # topParsModelValues <- rep(0, length(topParams))
     #predVals <- rep(0, length(predictivePars))
     #topParamsVals <- rep(0, length(topParams))
@@ -606,8 +606,8 @@ if(length(topParams) <5){
     else if(!jump ){#& latentSamp) {
       my_particleFilter$setLastLogLik(storeParticleLP)
       ## if we don't jump, replace model latent nodes with saved latent nodes
-      values(model, latentAsScalar) <<- pfModelValues
-      #copy(from = mvSaved, to = model, nodes = latents, row = 1, logProb = TRUE)
+      #values(model, latentAsScalar) <<- pfModelValues
+      copy(from = mvSaved, to = model, nodes = latents, row = 1, logProb = TRUE)
       values(model, topParamsInter) <<- targetModelValues
       if(multiple) nimCopy(from = mvSamplesEst, to = model, row = iterRan, nodes = topParams)
       #calculate(model)

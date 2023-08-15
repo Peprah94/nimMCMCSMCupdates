@@ -521,7 +521,13 @@ dims <- lapply(nodes[1:2], function(n) nimDim(model[[n]]))
         #print(extraVars)
         if(!extraVars){
           if(names[j] == latent){
-            estValues <- c(mcmcOut[iter, lastNodes], rep(0, length(extraNodes)))
+            if(names[j] == "N"){
+              meanN <- mean(mcmcOut[iter, lastNodes])
+              estValues <- c(mcmcOut[iter, lastNodes], rep(meanN, length(extraNodes)))
+            }else{
+              estValues <- c(mcmcOut[iter, lastNodes], rep(0, length(extraNodes)))
+            }
+
             names(estValues) <- model$expandNodeNames(names[j])
           }else{
             namesExpanded <- reducedModel$expandNodeNames(names[j])
@@ -672,7 +678,7 @@ spartaNimUpdates <- function(model, #nimbleModel
   #targetAsScalar <- estimationModel$expandNodeNames(target, returnScalarComponents = TRUE)
   #compiledParticleFilter <- compileNimble(estimationModel,  particleFilterEst)
 
-  #compiledParticleFilter$particleFilterEst$run(m = 100, iterRun = 10, storeModelValues = values(estimationModel, targetAsScalar))
+ # compiledParticleFilter$particleFilterEst$run(m = 2, iterRun = 2, storeModelValues = values(estimationModel, targetAsScalar))
 
 
 
