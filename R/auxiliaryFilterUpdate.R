@@ -315,7 +315,7 @@ auxFStepUpdate <- nimbleFunction(
          #   wts[i] <- ll[i]
          # }
 
-         wts[i] <- 1
+         wts[i] <- 1/m
        }
        ## Use log-sum-exp trick to avoid underflow.
        maxWt <- max(wts)

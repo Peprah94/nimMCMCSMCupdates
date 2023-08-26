@@ -224,7 +224,7 @@ model$simulate(calc_thisNode_self)
         mvWSamples['wts',i][currInd] <<- 1
         mvWSamples['bootLL',i][currInd] <<- 1
 
-        wts[i] <- 1
+        wts[i] <- 1/m
 #print(wts[i])
         llEst[i] <- wts[i] - log(m)
       }
@@ -247,7 +247,7 @@ model$simulate(calc_thisNode_self)
         # }
 
       out[1] <- stepllEst
-      out[2] <- 1
+      out[2] <- 0
 
        ess <<- 1/sum(wts^2)
 
