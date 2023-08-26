@@ -208,25 +208,37 @@ model$simulate(calc_thisNode_self)
       nimCopy(from = mvSamplesEst, to = model, nodes = target, row = iterRun, rowTo = 1)
 
       #update the deterministic vars
-      if(notFirst) {
-        model$calculate()
-      }
+      # if(notFirst) {
+      #   model$calculate()
+      # }
 
       for(i in 1:m) {
         #copy the same values from the iteration number to all the M particles
-        nimCopy(mvSamplesEst, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
-        nimCopy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
+        if(isAllData){
+          #calc_thisNode_self1 <- calc_thisNode_self[!model$isData(calc_thisNode_self)]
+          #model$simulate(calc_thisNode_self1)
+          nimCopy(mvSamplesEst, model, nodes = calc_thisNode_self1, nodesTo = calc_thisNode_self1, row = iterRun, rowTo = i)
+          values(model, calc_thisNode_self2) <<- calc_thisNode_self2Vals
+          #print(values(model, calc_thisNode_self2))
+        }else{
+          nimCopy(mvSamplesEst, model, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = 1)
+        }
 
+        #nimCopy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
+        #model$simulate(calc_thisNode_self)
+        nimCopy(model, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row=i)
 
 
     #set previous weights to 1 and log likelihood to 0,
     #assuming they are deterministic and would not contribute to the model after t > iNodePrev
-        mvWSamples['wts',i][currInd] <<- 1
-        mvWSamples['bootLL',i][currInd] <<- 1
+
+        mvWSamples['bootLL',i][currInd] <<- 1/m
 
         wts[i] <- 1/m
 #print(wts[i])
         llEst[i] <- wts[i] - log(m)
+        copy(mvEWSamples, mvWSamples, thisXName, thisXName, row = i,  rowTo = i)
+        mvWSamples['wts',i][currInd] <<- log(wts[i])
       }
       maxllEst <- max(llEst)
       stepllEst <- maxllEst + log(sum(exp(llEst - maxllEst)))
