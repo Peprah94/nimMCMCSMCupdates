@@ -252,6 +252,16 @@ auxFStepUpdate <- nimbleFunction(
     return(outLL)
      }else{
 # for t < iNodePrev
+       if(isAllData){
+         #calc_thisNode_self1 <- calc_thisNode_self[!model$isData(calc_thisNode_self)]
+         #model$simulate(calc_thisNode_self1)
+         nimCopy(mvSamplesEst, model, nodes = calc_thisNode_self1, nodesTo = calc_thisNode_self1, row = iterRun, rowTo = 1)
+         values(model, calc_thisNode_self2) <<- calc_thisNode_self2Vals
+         #print(values(model, calc_thisNode_self2))
+       }else{
+         nimCopy(mvSamplesEst, model, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = 1)
+       }
+
        nimCopy(from = mvSamplesEst, to = model, nodes = target, row = iterRun, rowTo = 1)
        # if(notFirst){
           for(i in 1:m) {
@@ -288,15 +298,7 @@ auxFStepUpdate <- nimbleFunction(
 
          # Simulate from x_t+1 | x_t.
          # treat z as data for y>1 and simuate for y = 0
-         if(isAllData){
-           #calc_thisNode_self1 <- calc_thisNode_self[!model$isData(calc_thisNode_self)]
-           #model$simulate(calc_thisNode_self1)
-           nimCopy(mvSamplesEst, model, nodes = calc_thisNode_self1, nodesTo = calc_thisNode_self1, row = iterRun, rowTo = i)
-           values(model, calc_thisNode_self2) <<- calc_thisNode_self2Vals
-           #print(values(model, calc_thisNode_self2))
-         }else{
-           nimCopy(mvSamplesEst, model, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = 1)
-         }
+
 
          #nimCopy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
          #model$simulate(calc_thisNode_self)

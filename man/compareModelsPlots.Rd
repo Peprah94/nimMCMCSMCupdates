@@ -12,8 +12,8 @@ compareModelsPlots(
   nodes = c(),
   bacthSize = 500,
   method = "bm",
-  metrics = list(ESS = TRUE, efficiency = TRUE, MCse = TRUE, traceplot = TRUE, density
-    = TRUE)
+  metrics = list(ESS = TRUE, efficiency = TRUE, MCse = TRUE, traceplot = TRUE, density =
+    TRUE)
 )
 }
 \arguments{

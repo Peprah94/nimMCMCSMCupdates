@@ -37,7 +37,9 @@ bootFStepUpdate <- nimbleFunction(
       prevDeterm <- modelSteps$prevDeterm
       calc_thisNode_self <- modelSteps$calc_thisNode_self
       calc_thisNode_deps <- modelSteps$calc_thisNode_deps
-
+      targetNodesAsScalar <- model$expandNodeNames(target, returnScalarComponents = TRUE)
+      prevNode <- nodes[if(notFirst) iNode-1 else iNode]
+      thisNode <- nodes[iNode]
       #calc_thisNode_deps <- calc_thisNode_deps[model$isData(calc_thisNode_deps)]
 
       #select data
@@ -47,9 +49,7 @@ bootFStepUpdate <- nimbleFunction(
       calc_thisNode_self1 <- calc_thisNode_self[!model$isData(calc_thisNode_self)]
       calc_thisNode_self2 <- calc_thisNode_self[model$isData(calc_thisNode_self)]
       calc_thisNode_self2Vals <- rep(1, length(calc_thisNode_self2))
-      targetNodesAsScalar <- model$expandNodeNames(target, returnScalarComponents = TRUE)
-      prevNode <- nodes[if(notFirst) iNode-1 else iNode]
-      thisNode <- nodes[iNode]
+
 
     ## t is the current time point.
     t <- iNode
@@ -211,57 +211,42 @@ model$simulate(calc_thisNode_self)
       # if(notFirst) {
       #   model$calculate()
       # }
+      if(isAllData){
+        nimCopy(mvSamplesEst, model, nodes = calc_thisNode_self1, nodesTo = calc_thisNode_self1, row = iterRun, rowTo = 1)
+        values(model, calc_thisNode_self2) <<- calc_thisNode_self2Vals
+
+      }else{
+        nimCopy(mvSamplesEst, model, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = 1)
+      }
 
       for(i in 1:m) {
-        #copy the same values from the iteration number to all the M particles
-        if(isAllData){
-          #calc_thisNode_self1 <- calc_thisNode_self[!model$isData(calc_thisNode_self)]
-          #model$simulate(calc_thisNode_self1)
-          nimCopy(mvSamplesEst, model, nodes = calc_thisNode_self1, nodesTo = calc_thisNode_self1, row = iterRun, rowTo = i)
-          values(model, calc_thisNode_self2) <<- calc_thisNode_self2Vals
-          #print(values(model, calc_thisNode_self2))
-        }else{
-          nimCopy(mvSamplesEst, model, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = 1)
-        }
 
-        #nimCopy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
-        #model$simulate(calc_thisNode_self)
         nimCopy(model, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row=i)
 
 
     #set previous weights to 1 and log likelihood to 0,
     #assuming they are deterministic and would not contribute to the model after t > iNodePrev
 
-        mvWSamples['bootLL',i][currInd] <<- 1/m
+        #mvWSamples['bootLL',i][currInd] <<- 1/m
 
         wts[i] <- 1/m
 #print(wts[i])
         llEst[i] <- wts[i] - log(m)
+      }
+
+      maxllEst <- max(llEst)
+      stepllEst <- maxllEst + log(sum(exp(llEst - maxllEst)))
+      out[1] <- stepllEst
+      out[2] <- 0
+      ess <<- 1/sum(wts^2)
+      for(i in 1:m){
         copy(mvEWSamples, mvWSamples, thisXName, thisXName, row = i,  rowTo = i)
         mvWSamples['wts',i][currInd] <<- log(wts[i])
       }
-      maxllEst <- max(llEst)
-      stepllEst <- maxllEst + log(sum(exp(llEst - maxllEst)))
 
-
-
-
-        #out[1] <- stepllEst
-        # if(is.nan(stepllEst)){
-        #   out[1] <- -Inf
-        #   out[2] <- 0
-        #   return(out)
-        # }
-        # if(stepllEst == Inf | stepllEst == -Inf){
-        #   out[1] <- -Inf
-        #   out[2] <- 0
-        #   return(out)
-        # }
-
-      out[1] <- stepllEst
-      out[2] <- 0
-
-       ess <<- 1/sum(wts^2)
+      for(i in 1:m){
+        mvWSamples['bootLL',i][currInd] <<- 1/m
+      }
 
       return(out)
 

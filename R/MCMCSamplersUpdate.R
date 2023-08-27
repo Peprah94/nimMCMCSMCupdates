@@ -400,7 +400,7 @@ if(length(topParams) <5){
         extraTargetStore <- latents
       }
     }else{
-      extraTargetVars = targetAsScalar
+      extraTargetVars <- targetAsScalar
       extraTargetStore <- targetAsScalar
     }
 #print(extraTargetVars)
