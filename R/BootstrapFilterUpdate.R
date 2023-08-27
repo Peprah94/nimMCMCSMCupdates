@@ -32,13 +32,15 @@ bootFStepUpdate <- nimbleFunction(
                    mvSamplesEst) {
 
     notFirst <- iNode != 1
+    last <- iNode == length(nodes)
+    prevNode <- nodes[if(notFirst) iNode-1 else iNode]
 
       modelSteps <- particleFilter_splitModelSteps(model, nodes, iNode, notFirst)
       prevDeterm <- modelSteps$prevDeterm
       calc_thisNode_self <- modelSteps$calc_thisNode_self
       calc_thisNode_deps <- modelSteps$calc_thisNode_deps
       targetNodesAsScalar <- model$expandNodeNames(target, returnScalarComponents = TRUE)
-      prevNode <- nodes[if(notFirst) iNode-1 else iNode]
+
       thisNode <- nodes[iNode]
       #calc_thisNode_deps <- calc_thisNode_deps[model$isData(calc_thisNode_deps)]
 
@@ -71,10 +73,12 @@ bootFStepUpdate <- nimbleFunction(
       currInd <- 1
       prevInd <- 1
     }
+
     isLast <- (iNode == length(nodes))
     ess <- 0
 
     resamplerFunctionList <- nimbleFunctionList(resamplerVirtual)
+    defaultResamplerFlag <- FALSE
     if(resamplingMethod == 'default'){
       resamplerFunctionList[[1]] <- residualResampleFunction()
       defaultResamplerFlag <- TRUE
@@ -249,6 +253,12 @@ model$simulate(calc_thisNode_self)
         }
       }
 
+      if(saveAll | last) {
+        for(i in 1:m) {
+          copy(mvWSamples, mvEWSamples, thisXName, thisXName, i, i)
+        }
+      }
+
       for(i in 1:m){
         mvWSamples['bootLL',i][currInd] <<- 1/m
       }
@@ -363,7 +373,7 @@ buildBootstrapFilterUpdate <- nimbleFunction(
     #initModel <- control[['initModel']]
     M <- control[['M']]
     resamplingMethod <- control[['resamplingMethod']]
-    if(is.null(thresh)) thresh <- .8
+    if(is.null(thresh)) thresh <- 1
     if(is.null(silent)) silent <- TRUE
     if(is.null(saveAll)) saveAll <- FALSE
     if(is.null(smoothing)) smoothing <- FALSE
