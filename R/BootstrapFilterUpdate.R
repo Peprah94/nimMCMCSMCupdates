@@ -211,17 +211,18 @@ model$simulate(calc_thisNode_self)
       # if(notFirst) {
       #   model$calculate()
       # }
-      if(isAllData){
-        nimCopy(mvSamplesEst, model, nodes = calc_thisNode_self1, nodesTo = calc_thisNode_self1, row = iterRun, rowTo = 1)
-        values(model, calc_thisNode_self2) <<- calc_thisNode_self2Vals
 
-      }else{
-        nimCopy(mvSamplesEst, model, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = 1)
-      }
 
       for(i in 1:m) {
+        if(isAllData){
+          nimCopy(mvSamplesEst, model, nodes = calc_thisNode_self1, nodesTo = calc_thisNode_self1, row = iterRun, rowTo = i)
+          values(model, calc_thisNode_self2) <<- calc_thisNode_self2Vals
 
-        nimCopy(model, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row=i)
+        }else{
+          nimCopy(mvSamplesEst, model, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
+        }
+
+        nimCopy(model, mvWSamples, nodes = thisNode, nodesTo = thisXName, row=i)
 
 
     #set previous weights to 1 and log likelihood to 0,
@@ -240,8 +241,12 @@ model$simulate(calc_thisNode_self)
       out[2] <- 0
       ess <<- 1/sum(wts^2)
       for(i in 1:m){
-        copy(mvEWSamples, mvWSamples, thisXName, thisXName, row = i,  rowTo = i)
+        copy(mvWSamples, mvEWSamples, thisXName, thisXName, row = i,  rowTo = i)
         mvWSamples['wts',i][currInd] <<- log(wts[i])
+        if(smoothing == 1){
+          copy(mvWSamples, mvEWSamples, nodes = allPrevNodes,
+               nodesTo = allPrevNodes, row = i, rowTo=i)
+        }
       }
 
       for(i in 1:m){
@@ -457,9 +462,10 @@ buildBootstrapFilterUpdate <- nimbleFunction(
     ## prevSamp indicates whether resampling took place at the previous time point.
     prevSamp <- 1
     for(iNode in seq_along(bootStepFunctions)) {
-      if(iNode == length(bootStepFunctions))
+      if(iNode == length(bootStepFunctions)){
         threshNum <- m  ## always resample at last time step so mvEWsamples is equally-weighted
-      out <- bootStepFunctions[[iNode]]$run(m, iterRun, storeModelValues, threshNum, prevSamp)
+      }
+        out <- bootStepFunctions[[iNode]]$run(m, iterRun, storeModelValues, threshNum, prevSamp)
       logL <- logL + out[1]
       prevSamp <- out[2]
       #print(iNode)
@@ -482,9 +488,9 @@ buildBootstrapFilterUpdate <- nimbleFunction(
     },
     getLastTimeRan = function() {
       return(runTime)
-      returnType(integer(0))
+      returnType(integer())
     },
-    setLastTimeRan = function(lll = integer(0)) {
+    setLastTimeRan = function(lll = integer()) {
       runTime <<- lll + 1
     },
     returnESS = function(){
