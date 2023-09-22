@@ -277,7 +277,12 @@ auxFStepUpdate <- nimbleFunction(
              return(-Inf)
            }
            ## Multiply (on log scale) by weight from time t.
+           if(auxll[i] == -Inf | auxll[i] == Inf){
+             auxWts[i] <- mvWSamples['wts',i][prevInd]
+             auxll[i] <- 0
+           }else{
            auxWts[i] <- auxll[i] + mvWSamples['wts',i][prevInd]
+           }
          }
        }
        #
@@ -303,7 +308,8 @@ auxFStepUpdate <- nimbleFunction(
 
          #nimCopy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
          #model$simulate(calc_thisNode_self)
-         nimCopy(model, mvWSamples, nodes = thisNode, nodesTo = thisXName, row=i)
+         nimCopy(model, mvWSamples, nodes = thisNode, nodesTo = thisXName, row=i, rowTo = i)
+         nimCopy(mvWSamples, mvEWSamples, thisXName, thisXName, row = i,  rowTo = i)
          ## Get p(y_t+1 | x_t+1).
        }
 
@@ -315,7 +321,7 @@ auxFStepUpdate <- nimbleFunction(
          }
          if(notFirst){
            ## Construct weight following step 4 of paper.
-           wts[i] <- ll[i]-auxll[i]
+           wts[i] <- ll[i] -auxll[i]
          }
          else{
            ## First step has no auxiliary weights.
@@ -323,7 +329,8 @@ auxFStepUpdate <- nimbleFunction(
          }
 
          #wts[i] <- 1/m
-       }
+         }
+
        ## Use log-sum-exp trick to avoid underflow.
        maxWt <- max(wts)
        normWts <- exp(wts - maxWt)/sum(exp(wts - maxWt))
@@ -333,22 +340,31 @@ auxFStepUpdate <- nimbleFunction(
          ## Save weights for use in next timepoint's look-ahead step.
          mvWSamples['wts', i][currInd] <<- log(normWts[i])
          #copy(mvWSamples, mvEWSamples, thisXName, thisXName, row = i, rowTo = i)
-         if(smoothing == 1){
-           copy(mvWSamples, mvEWSamples, nodes = allPrevNodes,
-                nodesTo = allPrevNodes, row = i, rowTo=i)
-         }
        }
 
 
        if(saveAll | last) {
          for(i in 1:m) {
+           if(smoothing == 1){
+             copy(mvWSamples, mvEWSamples, nodes = allPrevNodes,
+                  nodesTo = allPrevNodes, row = i, rowTo=i)
+           }
+
            copy(mvWSamples, mvEWSamples, thisXName, thisXName, i, i)
-       }
+         }
        }
        ## Calculate likelihood p(y_t+1 | y_1:t) as in equation (3) of paper.
        ## Use log-sum-exp trick to avoid underflow.
+         # maxWt <- max(wts)
+         # outLL <- log(sum(exp(wts - maxWt))) + maxWt - log(m)
+       if(notFirst){
+         maxWt <- max(wts)
+         maxAuxWt <- max(auxWts)
+         outLL <- log(sum(exp(wts - maxWt))) + maxWt - log(m) + log(sum(exp(auxWts - maxAuxWt))) + maxAuxWt
+       } else {
          maxWt <- max(wts)
          outLL <- log(sum(exp(wts - maxWt))) + maxWt - log(m)
+       }
 
        for(i in 1:m){
          mvWSamples['auxlog',i][currInd] <<- outLL
