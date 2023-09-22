@@ -229,7 +229,7 @@ model$simulate(calc_thisNode_self)
         }else{
           nimCopy(mvSamplesEst, model, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
         }
-model$calculate()
+#model$calculate()
         # copy results to mvSaved values
         nimCopy(model, mvWSamples, nodes = thisNode, nodesTo = thisXName, row=i)
         nimCopy(mvWSamples, mvEWSamples, thisXName, thisXName, row = i,  rowTo = i)
