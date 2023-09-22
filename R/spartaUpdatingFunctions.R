@@ -1,6 +1,5 @@
-#library(usethis)
-#usethis::edit_r_environ()
-#when the tab opens up in R studio, add this to the 1st line: R_MAX_VSIZE=100Gb (or whatever memory you wish to allocate).
+# Functions to run the reduced and updated models
+
 baselineSpartaEstimation <- function(model, #nimbleModel
                                      MCMCconfiguration = NULL, #configuration for MCMC
                                      pfType = "bootstrap",#Either 'auxiliary' or 'bootstrap'. Defaults to auxiliary
@@ -25,7 +24,8 @@ baselineSpartaEstimation <- function(model, #nimbleModel
   estimationModel <- model$newModel(replicate = TRUE)
 
   message("Building particle filter for model")
-  if(!is.null(pfType)){
+  if(is.null(pfType)) pfType <- "bootstrap" #set bootstrap as default
+ # if(!is.null(pfType)){
     if(!pfType %in% c("auxiliary", "bootstrap")) stop("Function currently works for auxiliary and bootstap Particle filters")
     #particleFilter is used to run the MCMC
     #particleFilterEst is used for returning the weights at the posterior
@@ -50,23 +50,26 @@ baselineSpartaEstimation <- function(model, #nimbleModel
                                                                  control = pfControl
                                                             )
     }
-  }else{
-    particleFilter <- nimbleSMC::buildBootstrapFilter(model,
-                                                          nodes =  latent,
-                                                           control = pfControl)
-
-    particleFilterEst <- nimbleSMC::buildBootstrapFilter(estimationModel,
-                                                              nodes = latent,
-                                                              control = pfControl)
-  }
+  #}else{
+    # set default as bootstrap
+    # particleFilter <- nimbleSMC::buildBootstrapFilter(model,
+    #                                                       nodes =  latent,
+    #                                                        control = pfControl)
+    #
+    # particleFilterEst <- nimbleSMC::buildBootstrapFilter(estimationModel,
+    #                                                           nodes = latent,
+    #                                                           control = pfControl)
+  #}
 
   message("Compiling the particle filter")
   #compiling the model
-  compiledParticleFilter <- compileNimble(model,  particleFilter)
+  compiledParticleFilter <- compileNimble(model,
+                                          particleFilter)
 
   #Loglikelihood of last run and the Effective sample sizes
   #message("Running the particle filter")
-  compiledParticleFilterEst <- compileNimble(estimationModel,  particleFilterEst)
+  compiledParticleFilterEst <- compileNimble(estimationModel,
+                                             particleFilterEst)
   logLik <-   compiledParticleFilterEst$particleFilterEst$run(m = nParFiltRun)
   ESS <-   compiledParticleFilterEst$particleFilterEst$returnESS()
 
@@ -163,18 +166,81 @@ baselineSpartaEstimation <- function(model, #nimbleModel
 
 
 
-#This function runs MCMC using particle filter MCMC and returns weights
+# This function runs fits model with either particle filtering algorithms
+# or mcmc. Can be used to fit both the reduced and baseline (full) models.
+
+#' Fit a full or reduced state-space model using either MCMC or SMC methods
+#'
+#' @description Fit a given NIMBLE state space model.
+#'
+#' @param model A NIMBLE model object, typically representing a state space model or a hidden Markov model.
+#' @param MCMCconfiguration  A list specifying the parameterisation for nimble's runMCMC function.
+#' @param pfType  The type of particle filter algorithm to fit. Defualts to 'bootstrap'.
+#' @param pfControl  A list specifying different control options for the particle filter. Options are described in the details section below.
+#' @param nParFiltRun  Number of particles for the particle filtering algorithm.
+#' @param latent  A character specifying which variable in the state-space model is the latent variable.
+#' @param block  A logical value indicating whether to block the model parameters and assign a random-walk block sampler.
+#' @param mcmc  A logical value indicating whether to fit the model with 'mcmc' or 'particle filter'. Defaults to TRUE.
+#' @author  Kwaku Peprah Adjei
+#' @details
+#' Each of the \code{pfControl()} list options are described in detail here:
+#' \describe{
+#' \item{lookahead}{The lookahead function used to calculate auxiliary weights.  Can choose between \code{'mean'} and \code{'simulate'}.
+#'  Defaults to \code{'simulate'}.}
+#'  \item{resamplingMethod}{The type of resampling algorithm to be used within the particle filter.  Can choose between \code{'default'} (which uses NIMBLE's \code{rankSample()} function), \code{'systematic'}, \code{'stratified'}, \code{'residual'}, and \code{'multinomial'}.  Defaults to \code{'default'}. Resampling methods other than \code{'default'} are currently experimental.}
+#'  \item{saveAll}{Indicates whether to save state samples for all time points (\code{TRUE}), or only for the most recent time point (\code{FALSE})}
+#'  \item{smoothing}{Decides whether to save smoothed estimates of latent states, i.e., samples from f(x[1:t]|y[1:t]) if \code{smoothing = TRUE}, or instead to save filtered samples from f(x[t]|y[1:t]) if \code{smoothing = FALSE}. \code{smoothing = TRUE} only works if \code{saveAll = TRUE}.}
+#'  \item{timeIndex}{An integer used to manually specify which dimension of the latent state variable indexes time. This need only be set if the number of time points is less than or equal to the size of the latent state at each time point.}
+#'  \item{initModel}{A logical value indicating whether to initialize the model before running the filtering algorithm.  Defaults to TRUE.}
+#'  }
+#'  \item{iNodePrev}{An integer specifying the number of years used to fit the reduced model.}
+#' }
+#'
+#'  This function provides an implementation to fit reduced models that can be used to
+#'  update the model parameters and latent state distribution in the future i.e. fit the reduced
+#'  model. It can also be used to fit the full model that can be compared to the
+#'  reduced and updated models
+#'
+#' @export
+#'
+#' @family smc update methods
+#'
+#' @examples
+#' ## For illustration only.
+#' stateSpaceCode <- nimbleCode({
+#'   x0 ~ dnorm(0, var = 1)
+#'   x[1] ~ dnorm(a* x0, var = 1)
+#'   y[1] ~ dnorm(x[1]*c, var = .5)
+#'   for(t in 2:10){
+#'     x[t] ~ dnorm(a * x[t-1], var = 1)
+#'     y[t] ~ dnorm(x[t]*c, var = .5)
+#'   }
+#' })
+#'
+#' model <- nimbleModel(code = exampleCode, data = list(y = rnorm(10)),
+#'                      inits = list(x0 = 0, x = rnorm(10)))
+#'
+#'  spartaNimWeights(model,
+#'  MCMCconfiguration = list(target = c('a', 'c'),
+#' n.iter = 1000,
+#' n.chains = 2,
+#' n.burnin = 100,
+#' n.thin = 2),
+#' latent = "x",
+#' mcmc = TRUE)
+#'
+#'
 
 spartaNimWeights <- function(model, #nimbleModel
                              MCMCconfiguration = NULL, #configuration for MCMC
-                             pfType = "bootstrap",#Either 'auxiliary' or 'bootstrap'. Defaults to auxiliary
+                             pfType = "bootstrap",#Either 'auxiliary' or 'bootstrap'. Defaults to bootstrap
                              pfControl = list(saveAll = TRUE,
                                               #lookahead = "mean",
                                               smoothing = FALSE), #list of controls for particle filter
                              nParFiltRun = NULL, #Number of PF runs
                              latent, #the latent variable
                              block = FALSE,
-                             mcmc = TRUE # logical if MCMC was used or not
+                             mcmc = TRUE # logical: if model should be fitted using MCMC or not. Default is TRUE
 ){
 
   timeStart1 <- Sys.time()
@@ -189,26 +255,27 @@ spartaNimWeights <- function(model, #nimbleModel
   estimationModel <- model$newModel(replicate = TRUE)
 
   if(mcmc == TRUE){
+    #compile model
     nMCompile <- compileNimble(model)
 
-
-    #
-    #target <- c(target, additionalPars)
+    # configure MCMC
     cMCMC <- configureMCMC(model, monitors = c(target, latent, additionalPars), useConjugacy = FALSE)
 
+    # If we want to assign a block sampler to the target variables
     if(block == TRUE){
       cMCMC$removeSampler(target)
       cMCMC$addSampler(target, type = "RW_block")
     }else{
       cMCMC = cMCMC
     }
-    #
+
+    # build, compile and run MCMC
     bMCMC <- buildMCMC(cMCMC,
                        useConjugacy = FALSE)
-    #
+
     coMCMC <- compileNimble(bMCMC,
                             project = nMCompile)
-    #
+
     timeStart2 <- Sys.time()
     mcmc.out <- runMCMC(coMCMC,
                             niter = n.iter,
@@ -226,47 +293,40 @@ spartaNimWeights <- function(model, #nimbleModel
     timetaken1 <- timeEnd - timeStart1
     timetaken2 <- timeEnd - timeStart2
 
-#Model values for the weighted samples
   }else{
+    #fit model using particle filter
   if(is.null(nParFiltRun)) nParFiltRun = 5000
 
   #create new model for weights
   estimationModel <- model$newModel(replicate = TRUE)
 
   message("Building particle filter for model")
-  if(!is.null(pfType)){
+  #if(!is.null(pfType)){
+  if(is.null(pfType)) pfType <- "bootstrap" # defaults to boostrap PF
     if(!pfType %in% c("auxiliary", "bootstrap")) stop("Function currently works for auxiliary and bootstap Particle filters")
 #particleFilter is used to run the MCMC
-#particleFilterEst is used for returning the weights at the posterior
+#particleFilterEst is used for testing
     #values of the top-level nodes
     if(pfType == "auxiliary"){
-      particleFilter <- nimMCMCSMCupdates::buildAuxiliaryFilterNew(model,
+      particleFilter <- nimbleSMC::buildAuxiliaryFilter(model,
                                                              latent,
                                                              control = pfControl)
 
-        particleFilterEst <- nimMCMCSMCupdates::buildAuxiliaryFilterNew(estimationModel,
+        particleFilterEst <- nimbleSMC::buildAuxiliaryFilter(estimationModel,
                                                              latent,
                                                              control = pfControl)
     }
 
     if(pfType == "bootstrap"){
-      particleFilter <- nimMCMCSMCupdates::buildBootstrapFilterNew(model,
+      particleFilter <- nimbleSMC::buildBootstrapFilter(model,
                                                         latent,
                                                         control = pfControl)
 
-        particleFilterEst <-  nimMCMCSMCupdates::buildBootstrapFilterNew(estimationModel,
+        particleFilterEst <-  nimbleSMC::buildBootstrapFilter(estimationModel,
                                                               latent,
                                                               control = pfControl)
     }
-  }else{
-    particleFilter <- nimMCMCSMCupdates::buildBootstrapFilterNew(model,
-                                                           latent,
-                                                           control = pfControl)
 
-      particleFilterEst <- nimMCMCSMCupdates::buildBootstrapFilterNew(estimationModel,
-                                                           latent,
-                                                           control = pfControl)
-  }
 
   message("Compiling the particle filter")
   #compiling the model
@@ -280,8 +340,6 @@ spartaNimWeights <- function(model, #nimbleModel
   message("Setting up the MCMC Configuration")
   #model <- model$newModel(replicate = TRUE)
   modelMCMCconf <- nimble::configureMCMC(model, nodes = NULL)
-
-  if(is.null(pfType)) pfType = "bootstrap" #set auxiliary as default pfType
 
   modelMCMCconf$addSampler(target = target,
                            type = 'RW_PF_block',
@@ -307,7 +365,7 @@ spartaNimWeights <- function(model, #nimbleModel
                               niter = n.iter,
                               nchains = n.chains,
                               nburnin = n.burnin,
-                              #inits = initsList,
+                              inits = initsList,
                               thin = n.thin,
                               setSeed = TRUE,
                               samples=TRUE,
@@ -361,30 +419,96 @@ timetaken2 <- timeEnd - timeStart2
 #save weights and samples
 #message("Extracting the weights and samples from particle fiter")
 
-updateUtils <- function(model, #reduced model
-                        reducedModel,
-                        mcmcOut,
-                        iNodeAll,
-                        latent, target, n.iter, m, timeIndex){
+# This function creates a modelValue object for the MCMC samples.
+# This is needed to fit the updated models
 
+#' Create a modelValue object for the MCMC object
+#'
+#' @description Create a modelValue object for MCMC object.
+#'
+#' @param model A NIMBLE model object, typically representing a state space model or a hidden Markov model for the updated model we want to fit.
+#' @param reducedModel  A NIMBLE model object, typically representing a state space model or a hidden Markov model for the reduced model we fitted.
+#' @param mcmcOut  The MCMC object of class mcmc.
+#' @param iNodeAll  A logical value indicating whether we want to copy all the years.
+#' @param target  A character specifying which variable is the target variable.
+#' @param latent  A character specifying which variable in the state-space model is the latent variable.
+#' @param n.iter  A integer specifying the number of iterations we want to use for the updated model.
+#' @param m  An integer specifying the number of particles for the particle filter.
+#' @param timeIndex  An integer specifying which dimension of the data is the time component.
+#' @author  Kwaku Peprah Adjei
+#'
+#'  This function provides an implementation to fit reduced models that can be used to
+#'  update the model parameters and latent state distribution in the future i.e. fit the reduced
+#'  model. It can also be used to fit the full model that can be compared to the
+#'  reduced and updated models
+#'
+#' @export
+#'
+#' @family smc update methods
+#'
+#' @examples
+#' ## For illustration only.
+#' stateSpaceCode <- nimbleCode({
+#'   x0 ~ dnorm(0, var = 1)
+#'   x[1] ~ dnorm(a* x0, var = 1)
+#'   y[1] ~ dnorm(x[1]*c, var = .5)
+#'   for(t in 2:10){
+#'     x[t] ~ dnorm(a * x[t-1], var = 1)
+#'     y[t] ~ dnorm(x[t]*c, var = .5)
+#'   }
+#' })
+#'
+#' model <- nimbleModel(code = exampleCode, data = list(y = rnorm(10)),
+#'                      inits = list(x0 = 0, x = rnorm(10)))
+#'
+#'  spartaNimWeights(model,
+#'  MCMCconfiguration = list(target = c('a', 'c'),
+#' n.iter = 1000,
+#' n.chains = 2,
+#' n.burnin = 100,
+#' n.thin = 2),
+#' latent = "x",
+#' mcmc = TRUE)
+#'
+#'
+updateUtils <- function(model, #updated model
+                        reducedModel, #reduced model
+                        mcmcOut, # mcmc object
+                        iNodeAll, # all nodes
+                        latent,  #latent variable
+                        target, # target parameters
+                        n.iter, # number of iteration
+                        m, # number of particles
+                        timeIndex){ #time index for particle filter
+
+# iNodeAll specifies whether the we want to just use time t to update the model or all the data point.
+# if iNodeAll = TRUE, we use all the time points.
 if(iNodeAll == FALSE){
+
+# get the latent nodes
 latentNodes <- model$expandNodeNames(latent)
 nodes <- findLatentNodes(model, latent, timeIndex)
 
+#get the last node
 lastNodes <- findLatentNodes(reducedModel, latent, timeIndex )
 lastNode <- lastNodes[length(lastNodes)]
 
+#get the dimensions of the parameters
 dims <- lapply(nodes[1:2], function(n) nimDim(model[[n]]))
 
+# get the target variable
 target <- target[!target %in% latent]
 if(length(unique(dims)) > 1)
   stop('sizes or dimensions of latent states varies')
 vars <- c(model$getVarNames(nodes =  nodes), target)
 
+#create model object
 modelSymbolObjects <- model$getSymbolTable()$getSymbolObjects()[vars]
 
 names <- sapply(modelSymbolObjects, function(x)return(x$name))
 type <- sapply(modelSymbolObjects, function(x)return(x$type))
+
+# Get the size of the modelValue object
 size <- lapply(modelSymbolObjects, function(x){
   y <- x$size
   t <- length(y)
@@ -401,19 +525,20 @@ rr <- y
   }
 )
 
+# create the modelValue object
 mvSamplesEst <- modelValues(modelValuesConf(vars = names,
                                             types = type,
                                             sizes = size))
 
-#resize
+# resize the modelValue object
  resize(mvSamplesEst, n.iter)
 
  message("Saving unsampled and sampled values in model values for updating")
 for(iter in 1:n.iter){
   for(j in 1:length(names)){
     if(names[j] == latent & length(size[[1]]) > 1){
+      # Obtain the length of extra target nodes that needs to be simulated
       extraVars <- length(model$expandNodeNames(names[j])) == length(reducedModel$expandNodeNames(names[j]))
-     # extraVars <- model$expandNodeNames(names[j])[!model$expandNodeNames(names[j]) %in% reducedModel$expandNodeNames(names[j])]
       if(!extraVars){
       extraValues <- values(model, model$expandNodeNames(nodes[-1]))
         #rep(0, length(model$expandNodeNames(nodes[-1])))
@@ -454,18 +579,22 @@ returnlist = list(
   mvSamplesEst = mvSamplesEst
 )
 }else{
-
+# get nodes
   latentNodes <- model$expandNodeNames(latent)
   nodes <- findLatentNodes(model, latent, timeIndex)
-
+# Get latent nodes and extra nodes
   lastNodes <- findLatentNodes(reducedModel, latent, timeIndex )
   lastNode <- lastNodes[length(lastNodes)]
-extraNodes <- nodes[!nodes %in% lastNodes]
-extraNodes <- model$expandNodeNames(extraNodes)
+  extraNodes <- nodes[!nodes %in% lastNodes]
+  extraNodes <- model$expandNodeNames(extraNodes)
 
+  # Get the dimensions
 dims <- lapply(nodes[1:2], function(n) nimDim(model[[n]]))
 
+# target variables
   target <- target[!target %in% latent]
+
+  # Dimensions of variables
   if(length(unique(dims)) > 1)
     stop('sizes or dimensions of latent states varies')
   vars <- c(model$getVarNames(nodes =  nodes), target)
@@ -490,20 +619,21 @@ dims <- lapply(nodes[1:2], function(n) nimDim(model[[n]]))
   }
   )
 
+  # Create modelValue object
   mvSamplesEst <- modelValues(modelValuesConf(vars = names,
                                               types = type,
                                               sizes = size))
-
-  #resize
-  resize(mvSamplesEst, n.iter)
+  resize(mvSamplesEst, n.iter) #resize modelvalue object
 
   message("Saving unsampled and sampled values in model values for updating")
   for(iter in 1:n.iter){
     for(j in 1:length(names)){
       if(names[j] == latent & length(size[[1]]) > 1){
+        # Extra target variables to simulate in sampler
         extraVars <- length(model$expandNodeNames(names[j])) == length(reducedModel$expandNodeNames(names[j]))
         # extraVars <- model$expandNodeNames(names[j])[!model$expandNodeNames(names[j]) %in% reducedModel$expandNodeNames(names[j])]
         if(!extraVars){
+          #if there are extra variables, initialise the model with the initial values
           extraValues <- nimble::values(model, extraNodes)#rep(0, length(extraNodes))
             #values(model, model$expandNodeNames(nodes[-1]))
           #rep(0, length(model$expandNodeNames(nodes[-1])))
@@ -512,7 +642,7 @@ dims <- lapply(nodes[1:2], function(n) nimDim(model[[n]]))
           names(allVals) <- model$expandNodeNames(nodes)
           mvSamplesEst[[names[j]]][[iter]] <- matrix(allVals, nrow = size[[1]][1], ncol = size[[1]][2])
         }else{
-
+#if not, then save all the target values
           allVals <- mcmcOut[iter, reducedModel$expandNodeNames(names[j])]
           mvSamplesEst[[names[j]]][[iter]] <- matrix(allVals, nrow = size[[1]][1], ncol = size[[1]][2])
         }
@@ -546,7 +676,7 @@ dims <- lapply(nodes[1:2], function(n) nimDim(model[[n]]))
     }
   }
 
-
+#save results
   returnlist = list(
     mvSamplesEst = mvSamplesEst
   )
@@ -556,7 +686,77 @@ return(returnlist)
 }
 
 ###########################################
+# This function runs fits model with either particle filtering algorithms
+# or mcmc. Can be used to fit both the reduced and baseline (full) models.
 
+#' Fit a full or reduced state-space model using either MCMC or SMC methods
+#'
+#' @description Fit a given updated NIMBLE state space model.
+#'
+#' @param model A NIMBLE model object, typically representing a state space model or a hidden Markov model.
+#' @param reducedModel A NIMBLE model object, typically representing a state space model or a hidden Markov model for the reduced method.
+#' @param MCMCconfiguration  A list specifying the parameterisation for nimble's runMCMC function.
+#' @param pfType  The type of particle filter algorithm to fit. Defualts to 'bootstrap'.
+#' @param pfControl  A list specifying different control options for the particle filter. Options are described in the details section below.
+#' @param nParFiltRun  Number of particles for the particle filtering algorithm.
+#' @param latent  A character specifying which variable in the state-space model is the latent variable.
+#' @param postReducedMCMC MCMC samples from the reduced model
+#' @param iNodeAll  A logical value indicating whether we want to copy all the years.
+#' @param target  A character specifying which variable is the target variable.
+#' @param extraVars  A character specifying which variable is the target variable.
+#' @param mcmcScale  A logical value indicating whether to fit the model with 'mcmc' or 'particle filter'. Defaults to TRUE.
+#' @param propCov  A character specifying which variable is the target variable.
+#' @param propCov1  A character specifying which variable is the target variable.
+#' @author  Kwaku Peprah Adjei
+#' @details
+#' Each of the \code{pfControl()} list options are described in detail here:
+#' \describe{
+#' \item{lookahead}{The lookahead function used to calculate auxiliary weights.  Can choose between \code{'mean'} and \code{'simulate'}.
+#'  Defaults to \code{'simulate'}.}
+#'  \item{resamplingMethod}{The type of resampling algorithm to be used within the particle filter.  Can choose between \code{'default'} (which uses NIMBLE's \code{rankSample()} function), \code{'systematic'}, \code{'stratified'}, \code{'residual'}, and \code{'multinomial'}.  Defaults to \code{'default'}. Resampling methods other than \code{'default'} are currently experimental.}
+#'  \item{saveAll}{Indicates whether to save state samples for all time points (\code{TRUE}), or only for the most recent time point (\code{FALSE})}
+#'  \item{smoothing}{Decides whether to save smoothed estimates of latent states, i.e., samples from f(x[1:t]|y[1:t]) if \code{smoothing = TRUE}, or instead to save filtered samples from f(x[t]|y[1:t]) if \code{smoothing = FALSE}. \code{smoothing = TRUE} only works if \code{saveAll = TRUE}.}
+#'  \item{timeIndex}{An integer used to manually specify which dimension of the latent state variable indexes time. This need only be set if the number of time points is less than or equal to the size of the latent state at each time point.}
+#'  \item{initModel}{A logical value indicating whether to initialize the model before running the filtering algorithm.  Defaults to TRUE.}
+#'  }
+#'  \item{iNodePrev}{An integer specifying the number of years used to fit the reduced model.}
+#' }
+#'
+#'  This function provides an implementation to fit reduced models that can be used to
+#'  update the model parameters and latent state distribution in the future i.e. fit the reduced
+#'  model. It can also be used to fit the full model that can be compared to the
+#'  reduced and updated models
+#'
+#' @export
+#'
+#' @family smc update methods
+#'
+#' @examples
+#' ## For illustration only.
+#' stateSpaceCode <- nimbleCode({
+#'   x0 ~ dnorm(0, var = 1)
+#'   x[1] ~ dnorm(a* x0, var = 1)
+#'   y[1] ~ dnorm(x[1]*c, var = .5)
+#'   for(t in 2:10){
+#'     x[t] ~ dnorm(a * x[t-1], var = 1)
+#'     y[t] ~ dnorm(x[t]*c, var = .5)
+#'   }
+#' })
+#'
+#' model <- nimbleModel(code = exampleCode, data = list(y = rnorm(10)),
+#'                      inits = list(x0 = 0, x = rnorm(10)))
+#'
+#'  spartaNimUpdates(model,
+#'  reducedModel,
+#'  MCMCconfiguration = list(target = c('a', 'c'),
+#' n.iter = 1000,
+#' n.chains = 2,
+#' n.burnin = 100,
+#' n.thin = 2),
+#' latent = "x",
+#' mcmc = TRUE)
+#'
+#'
 spartaNimUpdates <- function(model, #nimbleModel
                              reducedModel,
                              MCMCconfiguration = NULL, #configuration for MCMC
@@ -566,17 +766,17 @@ spartaNimUpdates <- function(model, #nimbleModel
                              #updatePFControl = list(iNodePrev = NULL, M = NULL),
                              latent, #the latent variable
                              #newData,
-                             postReducedMCMC,
-                             iNodeAll = TRUE,
-                             target = NULL,
-                             extraVars = NULL,
+                             postReducedMCMC, #MCMC results from reduced model
+                             iNodeAll = TRUE, # whether we want to use all the years from the reduced model in our updated model
+                             target = NULL, # target variable
+                             extraVars = NULL, #indicator of extra target variabøes
                              mcmcScale = 1,
                              propCov = 'identity',
                              propCov1 = 'identity'
 ){
 
 
-    target = MCMCconfiguration[["target"]]
+  target = MCMCconfiguration[["target"]]
   additionalPars = MCMCconfiguration[["additionalPars"]] #other dependent variables you seek to monitor
   n.iter = MCMCconfiguration[["n.iter"]]
   n.chains = MCMCconfiguration[["n.chains"]]
@@ -585,19 +785,18 @@ spartaNimUpdates <- function(model, #nimbleModel
   iNodePrev = pfControl[["iNodePrev"]]
   M = pfControl[["M"]]
   timeIndex <- pfControl[["timeIndex"]]
-  #iNodePrev = updatePFControl[["iNodePrev"]]
-  #M = updatePFControl[["M"]]
+
+  # set default values for the number of particles and timeIndex
   if(is.null(nParFiltRun)) nParFiltRun = 5000
   if(is.null(timeIndex)) timeIndex = 1
 
   samplesList  <- vector('list', n.chains)
-
   samplesList <- lapply(as.list(1:n.chains), function(chain.iter){
     timeStart1 <- Sys.time()
 
+    # create modelValues for MCMC output
     updateVars <- updateUtils(model = model, #reduced model
                               reducedModel = reducedModel,
-                #mcmcOut = postReducedMCMC$samples$chain1,
                 mcmcOut = postReducedMCMC$samples[[chain.iter]],
                           latent = latent,
               target = c(target, additionalPars),
@@ -630,22 +829,10 @@ spartaNimUpdates <- function(model, #nimbleModel
 
   message("Building particle filter for model")
 
-  if(is.null(pfType)){
-    particleFilter <- nimMCMCSMCupdates::buildBootstrapFilterUpdate(model,
-                                                              latent,
-                                                              mvSamplesEst = mvSamplesEst,
-                                                              target = target,
-                                                              control = pfControl)
-
-    particleFilterEst <- nimMCMCSMCupdates::buildBootstrapFilterUpdate(estimationModel,
-                                                                 latent,
-                                                                 mvSamplesEst = mvSamplesEst,
-                                                                 target = target,
-                                                                 control = pfControl)
-  }
 
 
-  if(!is.null(pfType)){
+  if(is.null(pfType)) pfType <- "bootstrap" #defaults to bootstrap PF
+
    if(!pfType %in% c("auxiliary", "bootstrap")) stop("Function currently works for auxiliary and bootstap Particle filters")
    if(pfType == "bootstrap"){
      particleFilter <- nimMCMCSMCupdates::buildBootstrapFilterUpdate(model,
@@ -672,13 +859,13 @@ spartaNimUpdates <- function(model, #nimbleModel
                                                                   mvSamplesEst = mvSamplesEst,
                                                                   control = pfControl)
    }
-   }
+
 
   #checking if the updated pF works very well
   #targetAsScalar <- estimationModel$expandNodeNames(target, returnScalarComponents = TRUE)
   #compiledParticleFilter <- compileNimble(estimationModel,  particleFilterEst)
 
- # compiledParticleFilter$particleFilterEst$run(m = 2, iterRun = 2, storeModelValues = values(estimationModel, targetAsScalar))
+  #compiledParticleFilter$particleFilterEst$run(m = 2000, iterRun = 1, storeModelValues = values(estimationModel, targetAsScalar))
 
 
 
@@ -688,9 +875,7 @@ spartaNimUpdates <- function(model, #nimbleModel
                                          monitors = c(target, latent, additionalPars),
                                          nodes = NULL)#, monitors = c(target, latent, additionalPars))
 
-  if(is.null(pfType)){
-    pfTypeUpdate = 'bootstrapUpdate'
-  }else{
+# set sampler to use
 if(pfType == "bootstrap"){
   pfTypeUpdate = 'bootstrapUpdate'
   }else{
@@ -698,9 +883,8 @@ if(pfType == "bootstrap"){
     pfTypeUpdate = 'auxiliaryUpdate'
     }
   }
-  }
 
-
+  #set up MCMC configuration
   modelMCMCconf$addSampler(target = target,
                            type = 'RW_PF_blockUpdate',
                            control = list(latents = latent,

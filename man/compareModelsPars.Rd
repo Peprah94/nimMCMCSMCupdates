@@ -34,9 +34,7 @@ Flegal, J. M., Hughes, J., Vats, D., Dai, N., Gupta, K., Maji, U., ... & Rcpp, L
 \seealso{
 Other particle filtering methods: 
 \code{\link{buildAuxiliaryFilterNew}},
-\code{\link{buildAuxiliaryFilterUpdate}},
 \code{\link{buildBootstrapFilterNew}},
-\code{\link{buildBootstrapFilterUpdate}},
 \code{\link{compareModelsIndividualPars}()},
 \code{\link{compareModelsMeanPlots}()},
 \code{\link{compareModelsPlots}()}

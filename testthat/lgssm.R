@@ -1,5 +1,5 @@
 nyears = 50
-numParticles = 5000
+numParticles = 10
 #Function to simulate data
 sim2 <- function(a, b, c, t, seed){
   set.seed(seed)
@@ -70,7 +70,7 @@ stateSpaceModel <- nimbleModel(stateSpaceCode,
 
 iNodePrev = 40
 iNodetag = 1
-pfTypeRun = "auxiliary"
+pfTypeRun = "bootstrap"
 
 
   data <- list(
@@ -91,8 +91,8 @@ pfTypeRun = "auxiliary"
                                  constants = constants,
                                  inits = inits,
                                  check = FALSE)
-  nIterations = 100000
-  nBurnin = 90000
+  nIterations = 10000
+  nBurnin = 2000
   nChains = 2
   nThin = 1
   # Fit reduced model with MCMC
@@ -156,6 +156,7 @@ pfTypeRun = "auxiliary"
                                                                                pfControl = list(saveAll = TRUE,
                                                                                                 smoothing = TRUE,
                                                                                                 mcmc = TRUE,
+                                                                                                lookahead="mean",
                                                                                                 M = nyears - iNodePrev[iNodetag],
                                                                                                 iNodePrev = iNodePrev[iNodetag])
   )

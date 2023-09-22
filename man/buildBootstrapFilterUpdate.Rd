@@ -2,7 +2,7 @@
 % Please edit documentation in R/BootstrapFilterUpdate.R
 \name{buildBootstrapFilterUpdate}
 \alias{buildBootstrapFilterUpdate}
-\title{Create a bootstrap particle filter algorithm to estimate log-likelihood.}
+\title{Create an updated bootstrap particle filter algorithm to estimate log-likelihood.}
 \usage{
 buildBootstrapFilterUpdate(
   model,
@@ -24,45 +24,15 @@ are taken to be latent (e.g., 'x'); an indexed variable, in which case all index
 to be latent (e.g., 'x[1:100]' or 'x[1:100, 1:2]'); or a vector of multiple nodes, one per time point,
 in increasing time order (e.g., c("x[1:2, 1]", "x[1:2, 2]", "x[1:2, 3]", "x[1:2, 4]")).}
 
+\item{mvSamplesEst}{A modelValue object contained posterior samples from the reduced model using MCMC.}
+
 \item{control}{A list specifying different control options for the particle filter.  Options are described in the details section below.}
 }
 \description{
-Create a bootstrap particle filter algorithm for a given NIMBLE state space model.
+Create an updated bootstrap particle filter algorithm for a given NIMBLE state space model.
 }
 \details{
-Each of the \code{control()} list options are described in detail here:
-\describe{
- \item{thresh}{ A number between 0 and 1 specifying when to resample: the resampling step will occur when the
-  effective sample size is less than \code{thresh} times the number of particles. Defaults to 0.8. Note that at the last time step, resampling will always occur so that the \code{mvEWsamples} \code{modelValues} contains equally-weighted samples.}
- \item{resamplingMethod}{The type of resampling algorithm to be used within the particle filter. Can choose between \code{'default'} (which uses NIMBLE's \code{rankSample()} function),  \code{'systematic'}, \code{'stratified'}, \code{'residual'}, and \code{'multinomial'}.  Defaults to \code{'default'}.  Resampling methods other than \code{'default'} are currently experimental.}
- \item{saveAll}{Indicates whether to save state samples for all time points (TRUE), or only for the most recent time point (FALSE)}
- \item{smoothing}{Decides whether to save smoothed estimates of latent states, i.e., samples from f(x[1:t]|y[1:t]) if \code{smoothing = TRUE}, or instead to save filtered samples from f(x[t]|y[1:t]) if \code{smoothing = FALSE}.  \code{smoothing = TRUE} only works if \code{saveAll = TRUE}.}
- \item{timeIndex}{An integer used to manually specify which dimension of the latent state variable indexes time.
- Only needs to be set if the number of time points is less than or equal to the size of the latent state at each time point.}
- \item{initModel}{A logical value indicating whether to initialize the model before running the filtering algorithm.  Defaults to TRUE.}
-}
 
- The bootstrap filter starts by generating a sample of estimates from the
- prior distribution of the latent states of a state space model.  At each time point, these particles are propagated forward
- by the model's transition equation.  Each particle is then given a weight
- proportional to the value of the observation equation given that particle.
- The weights are used to draw an equally-weighted sample of the particles at this time point.
- The algorithm then proceeds
- to the next time point.  Neither the transition nor the observation equations are required to
- be normal for the bootstrap filter to work.
-
- The resulting specialized particle filter algorthm will accept a
- single integer argument (\code{m}, default 10,000), which specifies the number
- of random \'particles\' to use for estimating the log-likelihood.  The algorithm
- returns the estimated log-likelihood value, and saves
- unequally weighted samples from the posterior distribution of the latent
- states in the \code{mvWSamples} modelValues object, with corresponding logged weights in \code{mvWSamples['wts',]}.
- An equally weighted sample from the posterior can be found in the \code{mvEWSamples} \code{modelValues} object.
-
- Note that if the \code{thresh} argument is set to a value less than 1, resampling may not take place at every time point.
- At time points for which resampling did not take place, \code{mvEWSamples} will not contain equally weighted samples.
- To ensure equally weighted samples in the case that \code{thresh < 1}, we recommend resampling from \code{mvWSamples} at each time point
- after the filter has been run, rather than using \code{mvEWSamples}.
 }
 \section{\code{returnESS()} Method}{
 
@@ -72,41 +42,41 @@ Each of the \code{control()} list options are described in detail here:
 
 \examples{
 ## For illustration only.
-exampleCode <- nimbleCode({
+stateSpaceCode <- nimbleCode({
   x0 ~ dnorm(0, var = 1)
-  x[1] ~ dnorm(.8 * x0, var = 1)
-  y[1] ~ dnorm(x[1], var = .5)
+  x[1] ~ dnorm(a* x0, var = 1)
+  y[1] ~ dnorm(x[1]*c, var = .5)
   for(t in 2:10){
-    x[t] ~ dnorm(.8 * x[t-1], var = 1)
-    y[t] ~ dnorm(x[t], var = .5)
+    x[t] ~ dnorm(a * x[t-1], var = 1)
+    y[t] ~ dnorm(x[t]*c, var = .5)
   }
 })
 
 model <- nimbleModel(code = exampleCode, data = list(y = rnorm(10)),
                      inits = list(x0 = 0, x = rnorm(10)))
-my_BootF <- buildBootstrapFilter(model, 'x',
-                control = list(saveAll = TRUE, thresh = 1))
+my_BootF <- buildBootstrapFilterUpdate(estimationModel,
+latent,
+mvSamplesEst = mvSamplesEst,
+target = target,
+control = pfControl)
 ## Now compile and run, e.g.,
-## Cmodel <- compileNimble(model)
-## Cmy_BootF <- compileNimble(my_BootF, project = model)
-## logLik <- Cmy_BootF$run(m = 1000)
-## ESS <- Cmy_BootF$returnESS()
-## boot_X <- as.matrix(Cmy_BootF$mvEWSamples, 'x')
+## targetAsScalar <- estimationModel$expandNodeNames(target, returnScalarComponents = TRUE)
+## compiledParticleFilter <- compileNimble(estimationModel,  particleFilterEst)
+## logLik <- compiledParticleFilter$particleFilterEst$run(m = 2000, iterRun = 1, storeModelValues = values(estimationModel, targetAsScalar))
+## ESS <- compiledParticleFilter$particleFilterEst$returnESS()
+## boot_X <- as.matrix(compiledParticleFilter$particleFilterEst$mvEWSamples, 'x')
 }
 \references{
-Gordon, N.J., D.J. Salmond, and A.F.M. Smith. (1993). Novel approach to nonlinear/non-Gaussian Bayesian state estimation. \emph{IEEE Proceedings F (Radar and Signal Processing)}. Vol. 140. No. 2. IET Digital Library, 1993.
+Michaud, N., de Valpine, P., Turek, D., Paciorek, C. J., & Nguyen, D. (2021). Sequential Monte Carlo methods in the nimble and nimbleSMC R packages. \emph{Journal of Statistical Software}. 100, 1-39.
 }
 \seealso{
-Other particle filtering methods: 
-\code{\link{buildAuxiliaryFilterNew}},
+Other smc update methods: 
 \code{\link{buildAuxiliaryFilterUpdate}},
-\code{\link{buildBootstrapFilterNew}},
-\code{\link{compareModelsIndividualPars}()},
-\code{\link{compareModelsMeanPlots}()},
-\code{\link{compareModelsPars}()},
-\code{\link{compareModelsPlots}()}
+\code{\link{spartaNimUpdates}()},
+\code{\link{spartaNimWeights}()},
+\code{\link{updateUtils}()}
 }
 \author{
-Daniel Turek and Nicholas Michaud
+Kwaku Peprah Adjei
 }
-\concept{particle filtering methods}
+\concept{smc update methods}

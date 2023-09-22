@@ -23,6 +23,7 @@ auxFuncVirtualUpdate <- nimble::nimbleFunctionVirtual(
   )
 )
 
+# Loook ahead functions
 auxLookFuncUpdate  = nimble::nimbleFunction(
   name = 'auxLookFuncUpdate',
   contains = auxFuncVirtualUpdate ,
@@ -45,8 +46,7 @@ auxSimFuncUpdate  = nimble::nimbleFunction(
     })
 )
 
-
-
+# Function to run for each time step
 auxFStepUpdate <- nimbleFunction(
   name = 'auxFStepUpdate',
   contains = auxStepVirtual2,
@@ -255,31 +255,31 @@ auxFStepUpdate <- nimbleFunction(
 
 
        nimCopy(from = mvSamplesEst, to = model, nodes = target, row = iterRun, rowTo = 1)
-       # if(notFirst){
+        if(notFirst){
           for(i in 1:m) {
-       #     if(smoothing == 1){
-       #       ## smoothing is only allowed if saveAll is TRUE, so this should be ok.
-       #       ## i.e., mvEWSamples have been resampled.
-       #       nimCopy(mvEWSamples, mvWSamples, nodes = allPrevNodes,
-       #               nodesTo = allPrevNodes, row = i, rowTo=i)
-       #     }
-       #     nimCopy(mvWSamples, model, prevXName, prevNode, row=i)
-       #     model$calculate(prevDeterm)
-       #     ## The lookahead steps may include determ and stoch steps.
-       #     if(lookahead == "mean"){
-       #       for(j in 1:numLatentNodes)
-       #         auxFuncList[[j]]$lookahead()
-       #     } else auxFuncList[[1]]$lookahead()
-       #
-       #     ## Get p(y_t+1 | x_t+1).
-       #     auxll[i] <- model$calculate(calc_thisNode_deps)
-       #     if(is.nan(auxll[i])){
-       #       return(-Inf)
-       #     }
-       #     ## Multiply (on log scale) by weight from time t.
-       #     auxWts[i] <- auxll[i] + mvWSamples['wts',i][prevInd]
-       #   }
-       # }
+           if(smoothing == 1){
+             ## smoothing is only allowed if saveAll is TRUE, so this should be ok.
+             ## i.e., mvEWSamples have been resampled.
+             nimCopy(mvEWSamples, mvWSamples, nodes = allPrevNodes,
+                     nodesTo = allPrevNodes, row = i, rowTo=i)
+           }
+           nimCopy(mvWSamples, model, prevXName, prevNode, row=i)
+           model$calculate(prevDeterm)
+           ## The lookahead steps may include determ and stoch steps.
+           if(lookahead == "mean"){
+             for(j in 1:numLatentNodes)
+               auxFuncList[[j]]$lookahead()
+           } else auxFuncList[[1]]$lookahead()
+
+           ## Get p(y_t+1 | x_t+1).
+           auxll[i] <- model$calculate(calc_thisNode_deps)
+           if(is.nan(auxll[i])){
+             return(-Inf)
+           }
+           ## Multiply (on log scale) by weight from time t.
+           auxWts[i] <- auxll[i] + mvWSamples['wts',i][prevInd]
+         }
+       }
        #
        # for(i in 1:m) {
        #   if(notFirst) {
@@ -290,6 +290,7 @@ auxFStepUpdate <- nimbleFunction(
 
          # Simulate from x_t+1 | x_t.
          # treat z as data for y>1 and simuate for y = 0
+       for(i in 1:m){
             if(isAllData){
               #calc_thisNode_self1 <- calc_thisNode_self[!model$isData(calc_thisNode_self)]
               #model$simulate(calc_thisNode_self1)
@@ -304,29 +305,34 @@ auxFStepUpdate <- nimbleFunction(
          #model$simulate(calc_thisNode_self)
          nimCopy(model, mvWSamples, nodes = thisNode, nodesTo = thisXName, row=i)
          ## Get p(y_t+1 | x_t+1).
-         # ll[i] <- model$calculate(calc_thisNode_deps)
-         # if(is.nan(ll[i])){
-         #   return(-Inf)
-         # }
-         # if(notFirst){
-         #   ## Construct weight following step 4 of paper.
-         #   wts[i] <- ll[i]-auxll[i]
-         # }
-         # else{
-         #   ## First step has no auxiliary weights.
-         #   wts[i] <- ll[i]
-         # }
+       }
 
-         wts[i] <- 1/m
+         llEst <- model$calculate(calc_thisNode_deps)
+         for(i in 1:m){
+           ll[i] <- llEst
+         if(is.nan(ll[i])){
+           return(-Inf)
+         }
+         if(notFirst){
+           ## Construct weight following step 4 of paper.
+           wts[i] <- ll[i]-auxll[i]
+         }
+         else{
+           ## First step has no auxiliary weights.
+           wts[i] <- ll[i]
+         }
+
+         #wts[i] <- 1/m
        }
        ## Use log-sum-exp trick to avoid underflow.
        maxWt <- max(wts)
        normWts <- exp(wts - maxWt)/sum(exp(wts - maxWt))
+       ##normalised weights would be different based on the auxiliary step
        ess <<- 1/sum(normWts^2)
        for(i in 1:m){
          ## Save weights for use in next timepoint's look-ahead step.
          mvWSamples['wts', i][currInd] <<- log(normWts[i])
-         copy(mvWSamples, mvEWSamples, thisXName, thisXName, row = i, rowTo = i)
+         #copy(mvWSamples, mvEWSamples, thisXName, thisXName, row = i, rowTo = i)
          if(smoothing == 1){
            copy(mvWSamples, mvEWSamples, nodes = allPrevNodes,
                 nodesTo = allPrevNodes, row = i, rowTo=i)
@@ -348,49 +354,6 @@ auxFStepUpdate <- nimbleFunction(
          mvWSamples['auxlog',i][currInd] <<- outLL
        }
        return(outLL)
-
-
-
-
-
-
-
-
-
-
-      #
-      #
-      #
-      #  nimCopy(from = mvSamplesEst, to = model, nodes = target,row = iterRun)
-      #  for(i in 1:m) {
-      #        nimCopy(mvSamplesEst, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
-      #        nimCopy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
-      #      wts[i] <- 1
-      # # }
-      #
-      #
-      #  if(notFirst) {
-      #    model$calculate(prevDeterm)
-      #  }
-      #
-      # #for(i in 1:m){
-      #    ## Save weights for use in next timepoint's look-ahead step.
-      #    mvWSamples['wts', i][currInd] <<- 1
-      #  }
-      #
-      #  maxWt <- max(wts)
-      #  outLL <- log(sum(exp(wts - maxWt))) + maxWt - log(m)
-      #
-      #  for(i in 1:m){
-      #    mvWSamples['auxlog',i][currInd] <<- outLL
-      #  }
-      #    #outLL <- 0
-      #  maxWt <- max(wts)
-      #  normWts <- exp(wts - maxWt)/sum(exp(wts - maxWt))
-      #  ess <<- 1/sum(normWts^2)
-      #
-      #   # ess <<- 1/sum(wts^2)
-      #   return(outLL)
      }
   },
   methods = list(
@@ -401,9 +364,9 @@ auxFStepUpdate <- nimbleFunction(
   )
 )
 
-#' Create an auxiliary particle filter algorithm to estimate log-likelihood.
+#' Create an updated auxiliary particle filter algorithm to estimate log-likelihood.
 #'
-#' @description Create an auxiliary particle filter algorithm for a given NIMBLE state space model.
+#' @description Create an updated auxiliary particle filter algorithm for a given NIMBLE state space model.
 #'
 #' @param model A NIMBLE model object, typically representing a state space model or a hidden Markov model.
 #' @param nodes  A character vector specifying the latent model nodes
@@ -413,8 +376,9 @@ auxFStepUpdate <- nimbleFunction(
 #'  are taken to be latent (e.g., 'x'); an indexed variable, in which case all indexed elements are taken
 #'  to be latent (e.g., 'x[1:100]' or 'x[1:100, 1:2]'); or a vector of multiple nodes, one per time point,
 #'  in increasing time order (e.g., c("x[1:2, 1]", "x[1:2, 2]", "x[1:2, 3]", "x[1:2, 4]")).
+#' @param mvSamplesEst  A modelValue object contained posterior samples from the reduced model using MCMC.
 #' @param control  A list specifying different control options for the particle filter.  Options are described in the details section below.
-#' @author  Nicholas Michaud
+#' @author  Kwaku Peprah Adjei
 #' @details
 #' Each of the \code{control()} list options are described in detail here:
 #' \describe{
@@ -426,6 +390,8 @@ auxFStepUpdate <- nimbleFunction(
 #'  \item{timeIndex}{An integer used to manually specify which dimension of the latent state variable indexes time. This need only be set if the number of time points is less than or equal to the size of the latent state at each time point.}
 #'  \item{initModel}{A logical value indicating whether to initialize the model before running the filtering algorithm.  Defaults to TRUE.}
 #'  }
+#'  \item{iNodePrev}{An integer specifying the number of years used to fit the reduced model.}
+#' }
 #'
 #' The auxiliary particle filter modifies the bootstrap filter (\code{\link{buildBootstrapFilter}})
 #' by adding a lookahead step to the algorithm: before propagating particles from one time
@@ -451,31 +417,35 @@ auxFStepUpdate <- nimbleFunction(
 
 #' @export
 #'
-#' @family particle filtering methods
-#' @references Pitt, M.K., and Shephard, N. (1999). Filtering via simulation: Auxiliary particle filters. \emph{Journal of the American Statistical Association} 94(446): 590-599.
+#' @family smc update methods
+#' @references Michaud, N., de Valpine, P., Turek, D., Paciorek, C. J., & Nguyen, D. (2021). Sequential Monte Carlo methods in the nimble and nimbleSMC R packages. \emph{Journal of Statistical Software}. 100, 1-39.
 #'
 #' @examples
 #' ## For illustration only.
-#' exampleCode <- nimbleCode({
+#' stateSpaceCode <- nimbleCode({
 #'   x0 ~ dnorm(0, var = 1)
-#'   x[1] ~ dnorm(.8 * x0, var = 1)
-#'   y[1] ~ dnorm(x[1], var = .5)
+#'   x[1] ~ dnorm(a* x0, var = 1)
+#'   y[1] ~ dnorm(x[1]*c, var = .5)
 #'   for(t in 2:10){
-#'     x[t] ~ dnorm(.8 * x[t-1], var = 1)
-#'     y[t] ~ dnorm(x[t], var = .5)
+#'     x[t] ~ dnorm(a * x[t-1], var = 1)
+#'     y[t] ~ dnorm(x[t]*c, var = .5)
 #'   }
 #' })
 #'
 #' model <- nimbleModel(code = exampleCode, data = list(y = rnorm(10)),
 #'                      inits = list(x0 = 0, x = rnorm(10)))
-#' my_AuxF <- buildAuxiliaryFilter(model, 'x',
-#'                 control = list(saveAll = TRUE, lookahead = 'mean'))
+#' my_BootF <- buildAuxiliaryFilterUpdate(estimationModel,
+#' latent,
+#' mvSamplesEst = mvSamplesEst,
+#' target = target,
+#' control = pfControl)
 #' ## Now compile and run, e.g.,
-#' ## Cmodel <- compileNimble(model)
-#' ## Cmy_AuxF <- compileNimble(my_AuxF, project = model)
-#' ## logLik <- Cmy_AuxF$run(m = 1000)
-#' ## ESS <- Cmy_AuxF$returnESS()
-#' ## aux_X <- as.matrix(Cmy_AuxF$mvEWSamples, 'x')
+#' ## targetAsScalar <- estimationModel$expandNodeNames(target, returnScalarComponents = TRUE)
+#' ## compiledParticleFilter <- compileNimble(estimationModel,  particleFilterEst)
+#' ## logLik <- compiledParticleFilter$particleFilterEst$run(m = 2000, iterRun = 1, storeModelValues = values(estimationModel, targetAsScalar))
+#' ## ESS <- compiledParticleFilter$particleFilterEst$returnESS()
+#' ## boot_X <- as.matrix(compiledParticleFilter$particleFilterEst$mvEWSamples, 'x')
+
 buildAuxiliaryFilterUpdate <- nimbleFunction(
   name = 'buildAuxiliaryFilterUpdate',
   #contains = auxStepVirtual1Update,

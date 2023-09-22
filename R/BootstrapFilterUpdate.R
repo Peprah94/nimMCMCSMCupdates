@@ -2,7 +2,11 @@
 ##  We have a build function (buildBootstrapFilter),
 ##  and step function.
 bootStepVirtualUpdate <- nimbleFunctionVirtual(
-  run = function(m = integer(),iterRun = integer(0), storeModelValues = double(1),threshNum=double(), prevSamp = logical()) {
+  run = function(m = integer(),
+                 iterRun = integer(0),
+                 storeModelValues = double(1),
+                 threshNum=double(),
+                 prevSamp = logical()) {
     returnType(double(1))
   },
   methods = list(
@@ -28,12 +32,15 @@ bootFStepUpdate <- nimbleFunction(
                    resamplingMethod,
                    silent = FALSE,
                    iNodePrev,
-                   latent, target,
+                   latent,
+                   target,
                    mvSamplesEst) {
 
+    # setting up parameters
     notFirst <- iNode != 1
     last <- iNode == length(nodes)
     prevNode <- nodes[if(notFirst) iNode-1 else iNode]
+
 
       modelSteps <- particleFilter_splitModelSteps(model, nodes, iNode, notFirst)
       prevDeterm <- modelSteps$prevDeterm
@@ -42,12 +49,11 @@ bootFStepUpdate <- nimbleFunction(
       targetNodesAsScalar <- model$expandNodeNames(target, returnScalarComponents = TRUE)
 
       thisNode <- nodes[iNode]
-      #calc_thisNode_deps <- calc_thisNode_deps[model$isData(calc_thisNode_deps)]
 
-      #select data
+
+      # set up occupancy models
+      # ensure that values y>0 have z's = 1 and those with y=0 have z's = NA
       isAllData <- latent == "z"
-
-        #all(model$isData(calc_thisNode_self) == TRUE)
       calc_thisNode_self1 <- calc_thisNode_self[!model$isData(calc_thisNode_self)]
       calc_thisNode_self2 <- calc_thisNode_self[model$isData(calc_thisNode_self)]
       calc_thisNode_self2Vals <- rep(1, length(calc_thisNode_self2))
@@ -99,16 +105,12 @@ bootFStepUpdate <- nimbleFunction(
                  prevSamp = logical()) {
     returnType(double(1))
 
-    #wts <- ids <- llEst<-  numeric(m)
-     #out <- numeric(2)
     wts <- numeric(m, init=FALSE)
     ids <- integer(m, 0)
     llEst <- numeric(m, init=FALSE)
     out <- numeric(2, init=FALSE)
 
-   # print(t + 1)
-
-    if(t > iNodePrev){
+    if(t > iNodePrev){ #Update from previous records
       values(model, targetNodesAsScalar) <<- storeModelValues
     for(i in 1:m) {
       if(notFirst) {
@@ -133,7 +135,8 @@ model$simulate(calc_thisNode_self)
       #model$simulate(calc_thisNode_deps)
       ## The logProbs of calc_thisNode_self are, correctly, not calculated.
       nimCopy(model, mvWSamples, nodes = thisNode, nodesTo = thisXName, row = i)
-      #model$calculate()
+
+       #model$calculate()
       wts[i]  <- model$calculate(calc_thisNode_deps)
       #print(wts[i])
       if(is.nan(wts[i])){
@@ -150,6 +153,7 @@ model$simulate(calc_thisNode_self)
     }
 
     maxllEst <- max(llEst)
+    #print(maxllEst)
     stepllEst <- maxllEst + log(sum(exp(llEst - maxllEst)))
 
     if(is.nan(stepllEst)){
@@ -218,39 +222,73 @@ model$simulate(calc_thisNode_self)
 
 
       for(i in 1:m) {
-        if(isAllData){
+        #copy from saved modelValues to model
+        if(isAllData){#for occupancy example
           nimCopy(mvSamplesEst, model, nodes = calc_thisNode_self1, nodesTo = calc_thisNode_self1, row = iterRun, rowTo = i)
           values(model, calc_thisNode_self2) <<- calc_thisNode_self2Vals
-
         }else{
           nimCopy(mvSamplesEst, model, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
         }
-
+model$calculate()
+        # copy results to mvSaved values
         nimCopy(model, mvWSamples, nodes = thisNode, nodesTo = thisXName, row=i)
-
-
-    #set previous weights to 1 and log likelihood to 0,
-    #assuming they are deterministic and would not contribute to the model after t > iNodePrev
-
-        #mvWSamples['bootLL',i][currInd] <<- 1/m
-
-        wts[i] <- 1/m
-#print(wts[i])
-        llEst[i] <- wts[i] - log(m)
-      }
-
-      maxllEst <- max(llEst)
-      stepllEst <- maxllEst + log(sum(exp(llEst - maxllEst)))
-      out[1] <- stepllEst
-      out[2] <- 0
-      ess <<- 1/sum(wts^2)
-      for(i in 1:m){
-        copy(mvWSamples, mvEWSamples, thisXName, thisXName, row = i,  rowTo = i)
-        mvWSamples['wts',i][currInd] <<- log(wts[i])
+        nimCopy(mvWSamples, mvEWSamples, thisXName, thisXName, row = i,  rowTo = i)
+        #mvWSamples['wts',i][currInd] <<- log(wts[i])
         if(smoothing == 1){
-          copy(mvWSamples, mvEWSamples, nodes = allPrevNodes,
+          nimCopy(mvWSamples, mvEWSamples, nodes = allPrevNodes,
                nodesTo = allPrevNodes, row = i, rowTo=i)
         }
+
+      }
+
+      wtsEst <- model$calculate(calc_thisNode_deps)
+      #print(wtsEst)
+      for(i in 1:m){
+        wts[i] <- wtsEst #model$calculate(calc_thisNode_deps)
+        if(is.nan(wts[i])){
+          out[1] <- -Inf
+          out[2] <- 0
+          return(out)
+        }
+        if(prevSamp == 0){ ## defaults to 1 for first step and then comes from the previous step
+          wts[i] <- wts[i] + mvWSamples['wts',i][prevInd]
+          llEst[i] <- wts[i]
+        } else {
+          llEst[i] <- wts[i] - log(m)
+        }
+        #llEst[i] <- wts[i] - log(m)
+      }
+
+      # calculate log-likelihood to be used by sampler
+      maxllEst <- max(llEst)
+      #print(llEst[1])
+      #print(maxllEst)
+      stepllEst <- maxllEst + log(sum(exp(llEst - maxllEst)))
+      if(is.nan(stepllEst)){
+        out[1] <- -Inf
+        out[2] <- 0
+        #return(out)
+      }else if(stepllEst == Inf | stepllEst == -Inf){
+        out[1] <- -Inf
+        out[2] <- 0
+        #return(out)
+      }else{
+        out[1] <- stepllEst
+      }
+
+      # We are not re-sampling
+      out[2] <- 0
+      ## Normalize weights and calculate effective sample size, using log-sum-exp trick to avoid underflow.
+      maxWt <- max(wts)
+      wts <- exp(wts - maxWt)/sum(exp(wts - maxWt))
+      ess <<- 1/sum(wts^2)
+      for(i in 1:m){
+        #copy(mvWSamples, mvEWSamples, thisXName, thisXName, row = i,  rowTo = i)
+        mvWSamples['wts',i][currInd] <<- log(wts[i])
+        # if(smoothing == 1){
+        #   copy(mvWSamples, mvEWSamples, nodes = allPrevNodes,
+        #        nodesTo = allPrevNodes, row = i, rowTo=i)
+        # }
       }
 
       if(saveAll | last) {
@@ -260,12 +298,10 @@ model$simulate(calc_thisNode_self)
       }
 
       for(i in 1:m){
-        mvWSamples['bootLL',i][currInd] <<- 1/m
+        mvWSamples['bootLL',i][currInd] <<- stepllEst
       }
 
       return(out)
-
-
   }
     },
   methods = list(
@@ -276,9 +312,9 @@ model$simulate(calc_thisNode_self)
   )
 )
 
-#' Create a bootstrap particle filter algorithm to estimate log-likelihood.
+#' Create an updated bootstrap particle filter algorithm to estimate log-likelihood.
 #'
-#'@description Create a bootstrap particle filter algorithm for a given NIMBLE state space model.
+#'@description Create an updated bootstrap particle filter algorithm for a given NIMBLE state space model.
 #'
 #' @param model A nimble model object, typically representing a state
 #'  space model or a hidden Markov model.
@@ -289,8 +325,9 @@ model$simulate(calc_thisNode_self)
 #'  are taken to be latent (e.g., 'x'); an indexed variable, in which case all indexed elements are taken
 #'  to be latent (e.g., 'x[1:100]' or 'x[1:100, 1:2]'); or a vector of multiple nodes, one per time point,
 #'  in increasing time order (e.g., c("x[1:2, 1]", "x[1:2, 2]", "x[1:2, 3]", "x[1:2, 4]")).
+#' @param mvSamplesEst  A modelValue object contained posterior samples from the reduced model using MCMC.
 #' @param control  A list specifying different control options for the particle filter.  Options are described in the details section below.
-#' @author Daniel Turek and Nicholas Michaud
+#' @author Kwaku Peprah Adjei
 #' @details
 #'
 #' Each of the \code{control()} list options are described in detail here:
@@ -304,9 +341,13 @@ model$simulate(calc_thisNode_self)
 #'  Only needs to be set if the number of time points is less than or equal to the size of the latent state at each time point.}
 #'  \item{initModel}{A logical value indicating whether to initialize the model before running the filtering algorithm.  Defaults to TRUE.}
 #' }
+#'  \item{iNodePrev}{An integer specifying the number of years used to fit the reduced model.}
+#' }
 #'
-#'  The bootstrap filter starts by generating a sample of estimates from the
-#'  prior distribution of the latent states of a state space model.  At each time point, these particles are propagated forward
+#'  The updated bootstrap filter starts by copying saved MCMC results into a
+#'  modelValue object, and calculate weights for times t<= iNodePrev. For time iNode>iNodePrev,
+#'  the updated bootstrap filter generates a sample of estimates from the
+#'  prior distribution of the latent states of a state space model.  At each of these time point, these particles are propagated forward
 #'  by the model's transition equation.  Each particle is then given a weight
 #'  proportional to the value of the observation equation given that particle.
 #'  The weights are used to draw an equally-weighted sample of the particles at this time point.
@@ -314,7 +355,7 @@ model$simulate(calc_thisNode_self)
 #'  to the next time point.  Neither the transition nor the observation equations are required to
 #'  be normal for the bootstrap filter to work.
 #'
-#'  The resulting specialized particle filter algorthm will accept a
+#'  The resulting specialized particle filter algorithm will accept a
 #'  single integer argument (\code{m}, default 10,000), which specifies the number
 #'  of random \'particles\' to use for estimating the log-likelihood.  The algorithm
 #'  returns the estimated log-likelihood value, and saves
@@ -333,34 +374,41 @@ model$simulate(calc_thisNode_self)
 #'
 #' @export
 #'
-#' @family particle filtering methods
-#' @references Gordon, N.J., D.J. Salmond, and A.F.M. Smith. (1993). Novel approach to nonlinear/non-Gaussian Bayesian state estimation. \emph{IEEE Proceedings F (Radar and Signal Processing)}. Vol. 140. No. 2. IET Digital Library, 1993.
+#' @family smc update methods
+#' @references Michaud, N., de Valpine, P., Turek, D., Paciorek, C. J., & Nguyen, D. (2021). Sequential Monte Carlo methods in the nimble and nimbleSMC R packages. \emph{Journal of Statistical Software}. 100, 1-39.
 #' @examples
 #' ## For illustration only.
-#' exampleCode <- nimbleCode({
+#' stateSpaceCode <- nimbleCode({
 #'   x0 ~ dnorm(0, var = 1)
-#'   x[1] ~ dnorm(.8 * x0, var = 1)
-#'   y[1] ~ dnorm(x[1], var = .5)
+#'   x[1] ~ dnorm(a* x0, var = 1)
+#'   y[1] ~ dnorm(x[1]*c, var = .5)
 #'   for(t in 2:10){
-#'     x[t] ~ dnorm(.8 * x[t-1], var = 1)
-#'     y[t] ~ dnorm(x[t], var = .5)
+#'     x[t] ~ dnorm(a * x[t-1], var = 1)
+#'     y[t] ~ dnorm(x[t]*c, var = .5)
 #'   }
 #' })
 #'
 #' model <- nimbleModel(code = exampleCode, data = list(y = rnorm(10)),
 #'                      inits = list(x0 = 0, x = rnorm(10)))
-#' my_BootF <- buildBootstrapFilter(model, 'x',
-#'                 control = list(saveAll = TRUE, thresh = 1))
+#' my_BootF <- buildBootstrapFilterUpdate(estimationModel,
+#' latent,
+#' mvSamplesEst = mvSamplesEst,
+#' target = target,
+#' control = pfControl)
 #' ## Now compile and run, e.g.,
-#' ## Cmodel <- compileNimble(model)
-#' ## Cmy_BootF <- compileNimble(my_BootF, project = model)
-#' ## logLik <- Cmy_BootF$run(m = 1000)
-#' ## ESS <- Cmy_BootF$returnESS()
-#' ## boot_X <- as.matrix(Cmy_BootF$mvEWSamples, 'x')
+#' ## targetAsScalar <- estimationModel$expandNodeNames(target, returnScalarComponents = TRUE)
+#' ## compiledParticleFilter <- compileNimble(estimationModel,  particleFilterEst)
+#' ## logLik <- compiledParticleFilter$particleFilterEst$run(m = 2000, iterRun = 1, storeModelValues = values(estimationModel, targetAsScalar))
+#' ## ESS <- compiledParticleFilter$particleFilterEst$returnESS()
+#' ## boot_X <- as.matrix(compiledParticleFilter$particleFilterEst$mvEWSamples, 'x')
 
 buildBootstrapFilterUpdate <- nimbleFunction(
   name = 'buildBootstrapFilterUpdate',
-  setup = function(model, nodes, mvSamplesEst = list(), target, control = list()) {
+  setup = function(model,
+                   nodes,
+                   mvSamplesEst = list(),
+                   target,
+                   control = list()) {
 
     #control list extraction
     thresh <- control[['thresh']]
@@ -369,15 +417,15 @@ buildBootstrapFilterUpdate <- nimbleFunction(
     silent <- control[['silent']]
     timeIndex <- control[['timeIndex']]
     initModel <- control[['initModel']]
-    iNodePrev <- control[['iNodePrev']]
+    iNodePrev <- control[['iNodePrev']] #how many time points were used to fit the reduced model
     #initModel <- control[['initModel']]
-    M <- control[['M']]
+    #M <- control[['M']]
     resamplingMethod <- control[['resamplingMethod']]
-    if(is.null(thresh)) thresh <- 1
+    if(is.null(thresh)) thresh <- 0.8
     if(is.null(silent)) silent <- TRUE
     if(is.null(saveAll)) saveAll <- FALSE
     if(is.null(smoothing)) smoothing <- FALSE
-    if(is.null(initModel)) initModel <- FALSE
+    if(is.null(initModel)) initModel <- TRUE
     if(is.null(resamplingMethod)) resamplingMethod <- 'default'
     if(!(resamplingMethod %in% c('default', 'multinomial', 'systematic', 'stratified',
                                  'residual')))
@@ -397,11 +445,14 @@ buildBootstrapFilterUpdate <- nimbleFunction(
       stop('buildBootstrapFilter: "thresh" must be between 0 and 1.')
     if(!saveAll & smoothing)
       stop("buildBootstrapFilter: must have 'saveAll = TRUE' for smoothing to work.")
+
+    if(!is.numeric(iNodePrev) || iNodePrev < 0)
+      stop("buildBootstrapFilter: must have 'iNodePrev' numeric and greater than 0")
     ## Create mv variables for x state and sampled x states.  If saveAll=TRUE,
     ## the sampled x states will be recorded at each time point.
     modelSymbolObjects <- model$getSymbolTable()$getSymbolObjects()[vars]
-    if(saveAll){
 
+    if(saveAll){
       names <- sapply(modelSymbolObjects, function(x)return(x$name))
       type <- sapply(modelSymbolObjects, function(x)return(x$type))
       size <- lapply(modelSymbolObjects, function(x)return(x$size))
@@ -416,7 +467,7 @@ buildBootstrapFilterUpdate <- nimbleFunction(
       size$bootLL <- length(dims)
       ##  Only need one weight per particle (at time T) if smoothing == TRUE.
       if(smoothing){
-        size$wts <- 1
+      size$wts <- 1
       size$bootLL <- 1
       }
       mvWSamples  <- modelValues(modelValuesConf(vars = names,

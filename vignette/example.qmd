@@ -1,8 +1,21 @@
 ---
 title: "Vignette for sequential Monte Carlo methods for data assimilation problems"
 author:
-- Kwaku Peprah Adjei$^{123}$
-- Robert B. O'Hara$^4$
+  - name : Kwaku Peprah Adjei
+    affil-id: 1,2
+  - name : Robert B. O'Hara
+    affil-id: 1,2
+  - name : Nick Isaac
+    affil-id: 3
+  - name : Rob Cooke
+    affil-id: 3
+affiliations:
+  - id: 1
+    name: Department of Mathematical Sciences, Norwegian University of Science and Technology, Trondheim, Norway
+  - id: 2
+    name: Centre of Biodiversity Dynamics, Norwegian University of Science and Technology, Trondheim, Norway 
+  - id: 3
+    name: Center of Ecology and Hydrology, Wallingford, UK
 bibliography: references.bib
 format: 
   pdf:

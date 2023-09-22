@@ -93,8 +93,6 @@ Gordon, N.J., D.J. Salmond, and A.F.M. Smith. (1993). Novel approach to nonlinea
 \seealso{
 Other particle filtering methods: 
 \code{\link{buildAuxiliaryFilterNew}},
-\code{\link{buildAuxiliaryFilterUpdate}},
-\code{\link{buildBootstrapFilterUpdate}},
 \code{\link{compareModelsIndividualPars}()},
 \code{\link{compareModelsMeanPlots}()},
 \code{\link{compareModelsPars}()},
