@@ -84,7 +84,7 @@ bootFStepUpdate <- nimbleFunction(
     ess <- 0
 
     resamplerFunctionList <- nimbleFunctionList(resamplerVirtual)
-    defaultResamplerFlag <- FALSE
+    #defaultResamplerFlag <- FALSE
     if(resamplingMethod == 'default'){
       resamplerFunctionList[[1]] <- residualResampleFunction()
       defaultResamplerFlag <- TRUE
@@ -119,7 +119,7 @@ bootFStepUpdate <- nimbleFunction(
                nodesTo = allPrevNodes, row = i, rowTo=i)
         }
         nimCopy(mvEWSamples, model, nodes = prevXName, nodesTo = prevNode, row = i)
-        model$calculate()
+        model$calculate(prevDeterm)
         }
       #}
       #isAllData <- all(model$isData(calc_thisNode_self) == TRUE)
@@ -208,7 +208,9 @@ model$simulate(calc_thisNode_self)
     for(i in 1:m){
       mvWSamples['bootLL',i][currInd] <<- out[1]
     }
-    #print(out)
+    #print(stepllEst)
+   #print(out)
+
     return(out)
     }else{
       # for t < iNodePrev
@@ -222,6 +224,14 @@ model$simulate(calc_thisNode_self)
 
 
       for(i in 1:m) {
+        if(notFirst) {
+          if(smoothing == 1){
+            nimCopy(mvEWSamples, mvWSamples, nodes = allPrevNodes,
+                    nodesTo = allPrevNodes, row = i, rowTo=i)
+          }
+          nimCopy(mvSamplesEst, model, nodes = prevXName, nodesTo = prevNode, row = iterRun, rowTo = i)
+          #model$calculate(prevDeterm)
+        }
         #copy from saved modelValues to model
         if(isAllData){#for occupancy example
           nimCopy(mvSamplesEst, model, nodes = calc_thisNode_self1, nodesTo = calc_thisNode_self1, row = iterRun, rowTo = i)
@@ -229,25 +239,19 @@ model$simulate(calc_thisNode_self)
         }else{
           nimCopy(mvSamplesEst, model, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
         }
-#model$calculate()
         # copy results to mvSaved values
-        nimCopy(model, mvWSamples, nodes = thisNode, nodesTo = thisXName, row=i)
+        nimCopy(model, mvWSamples, nodes = thisNode, nodesTo = thisXName, row=i, rowTo = i)
         nimCopy(mvWSamples, mvEWSamples, thisXName, thisXName, row = i,  rowTo = i)
-        #mvWSamples['wts',i][currInd] <<- log(wts[i])
-        if(smoothing == 1){
-          nimCopy(mvWSamples, mvEWSamples, nodes = allPrevNodes,
-               nodesTo = allPrevNodes, row = i, rowTo=i)
-        }
-
       }
 
       wtsEst <- model$calculate(calc_thisNode_deps)
+      #print(wtsEst)
       #print(wtsEst)
       for(i in 1:m){
         wts[i] <- wtsEst #model$calculate(calc_thisNode_deps)
         if(is.nan(wts[i])){
           out[1] <- -Inf
-          out[2] <- 0
+          out[2] <- 1
           return(out)
         }
         if(prevSamp == 0){ ## defaults to 1 for first step and then comes from the previous step
@@ -259,25 +263,27 @@ model$simulate(calc_thisNode_self)
         #llEst[i] <- wts[i] - log(m)
       }
 
+      # The samples are assumed to be equally weighted. So out[2] = 1
       # calculate log-likelihood to be used by sampler
       maxllEst <- max(llEst)
       #print(llEst[1])
       #print(maxllEst)
       stepllEst <- maxllEst + log(sum(exp(llEst - maxllEst)))
+      #print(stepllEst)
       if(is.nan(stepllEst)){
         out[1] <- -Inf
-        out[2] <- 0
+        out[2] <- 1
         #return(out)
       }else if(stepllEst == Inf | stepllEst == -Inf){
         out[1] <- -Inf
-        out[2] <- 0
+        out[2] <- 1
         #return(out)
       }else{
         out[1] <- stepllEst
       }
 
       # We are not re-sampling
-      out[2] <- 0
+      out[2] <- 1
       ## Normalize weights and calculate effective sample size, using log-sum-exp trick to avoid underflow.
       maxWt <- max(wts)
       wts <- exp(wts - maxWt)/sum(exp(wts - maxWt))
@@ -285,22 +291,17 @@ model$simulate(calc_thisNode_self)
       for(i in 1:m){
         #copy(mvWSamples, mvEWSamples, thisXName, thisXName, row = i,  rowTo = i)
         mvWSamples['wts',i][currInd] <<- log(wts[i])
-        # if(smoothing == 1){
-        #   copy(mvWSamples, mvEWSamples, nodes = allPrevNodes,
-        #        nodesTo = allPrevNodes, row = i, rowTo=i)
-        # }
-      }
-
-      if(saveAll | last) {
-        for(i in 1:m) {
-          copy(mvWSamples, mvEWSamples, thisXName, thisXName, i, i)
+        if(smoothing == 1){
+          copy(mvWSamples, mvEWSamples, nodes = allPrevNodes,
+               nodesTo = allPrevNodes, row = i, rowTo=i)
         }
       }
+
 
       for(i in 1:m){
         mvWSamples['bootLL',i][currInd] <<- stepllEst
       }
-
+#print(out)
       return(out)
   }
     },
