@@ -865,7 +865,7 @@ spartaNimUpdates <- function(model, #nimbleModel
   #targetAsScalar <- estimationModel$expandNodeNames(target, returnScalarComponents = TRUE)
   #compiledParticleFilter <- compileNimble(estimationModel,  particleFilterEst)
 
-  #compiledParticleFilter$particleFilterEst$run(m = 2000, iterRun = 1, storeModelValues = values(estimationModel, targetAsScalar))
+  #compiledParticleFilter$particleFilterEst$run(m = 1000, iterRun = 9, storeModelValues = values(estimationModel, targetAsScalar))
 
 
 

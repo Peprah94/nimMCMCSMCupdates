@@ -221,7 +221,13 @@ model$simulate(calc_thisNode_self)
       # if(notFirst) {
       #   model$calculate()
       # }
-
+      #copy from saved modelValues to model
+      if(isAllData){#for occupancy example
+        nimCopy(mvSamplesEst, model, nodes = calc_thisNode_self1, nodesTo = calc_thisNode_self1, row = iterRun, rowTo = 1)
+        values(model, calc_thisNode_self2) <<- calc_thisNode_self2Vals
+      }else{
+        nimCopy(mvSamplesEst, model, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = 1)
+      }
 
       for(i in 1:m) {
         if(notFirst) {
@@ -232,15 +238,9 @@ model$simulate(calc_thisNode_self)
           nimCopy(mvSamplesEst, model, nodes = prevXName, nodesTo = prevNode, row = iterRun, rowTo = i)
           #model$calculate(prevDeterm)
         }
-        #copy from saved modelValues to model
-        if(isAllData){#for occupancy example
-          nimCopy(mvSamplesEst, model, nodes = calc_thisNode_self1, nodesTo = calc_thisNode_self1, row = iterRun, rowTo = i)
-          values(model, calc_thisNode_self2) <<- calc_thisNode_self2Vals
-        }else{
-          nimCopy(mvSamplesEst, model, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
-        }
+
         # copy results to mvSaved values
-        nimCopy(model, mvWSamples, nodes = thisNode, nodesTo = thisXName, row=i, rowTo = i)
+        nimCopy(mvSamplesEst, mvWSamples, nodes = thisNode, nodesTo = thisXName, row=iterRun, rowTo = i)
         nimCopy(mvWSamples, mvEWSamples, thisXName, thisXName, row = i,  rowTo = i)
       }
 

@@ -395,13 +395,16 @@ if(length(topParams) <5){
      extraTargetStore <-  c(extraTargetVarsWithAdditionalPars,
                             stochExtraPars)
      storeOtherVals <- TRUE
+     extras <- TRUE
       }else{
         extraTargetVars <- latents
         extraTargetStore <- latents
+        extras <- FALSE
       }
     }else{
       extraTargetVars <- targetAsScalar
       extraTargetStore <- targetAsScalar
+      extras <- FALSE
     }
 #print(extraTargetVars)
 #print(storeOtherVals)
@@ -501,7 +504,16 @@ if(length(topParams) <5){
     #extraParsToSave <- calcNodes[!calcNodes %in% model$expandNodeNames(c(target, latents))]
     #my_setAndCalculate <- setAndCalculate(model, target)
     my_setAndCalculate <- setAndCalculate(model, topParamsInter)
-    my_setAndCalculateUpdate <-  mySetAndCalculateUpdate(model, target, latents, mvSamplesEst, my_particleFilter, m, topParamsInter, mvSaved, extraTargetVars)
+    my_setAndCalculateUpdate <-  mySetAndCalculateUpdate(model = model,
+                                                         target = target,
+                                                         latents = latents,
+                                                         mvSamplesEst = mvSamplesEst,
+                                                         my_particleFilter = my_particleFilter,
+                                                         m = m,
+                                                         topParamsInter = topParamsInter,
+                                                         mvSaved = mvSaved,
+                                                         extraTargetVars = extraTargetVars,
+                                                         extras = extras)
     #my_decideAndJump <-  myDecideAndJump(model, mvSaved, topParamsInter,latentAsScalar, mvSamplesEst)
     #my_calcAdaptationFactor <- calcAdaptationFactor(d, adaptFactorExponent)
     #if(multiple)
@@ -514,7 +526,7 @@ if(length(topParams) <5){
 
     # particleMVold <- my_particleFilter$mvEWSamples
     #pfModelValues <- rep(0, length(model$expandNodeNames(latentAsScalar)))
-    pfModelValues <- rep(0, length(latentAsScalar))
+    pfModelValues <- rep(0, length(latentDep))
     targetModelValues <- rep(0, length(topParamsInter))
     topParamsValues <- rep(0, length(topParams))
     storeModelVals <- rep(0, length(targetAsScalar))
@@ -528,11 +540,17 @@ if(length(topParams) <5){
 
     ccList1 <- myMcmc_determineCalcAndCopyNodes(model, topParamsInter)
     copyNodesDeterm1 <- ccList1$copyNodesDeterm; copyNodesStoch1 <- ccList1$copyNodesStoch
+
+    #initialize the decision process
+    #jump <- 0
     #pfModelValues <- rep(0, length(latents))
     # if(extraSave){
     #   pfModelValuesForExtra <- rep(0, length(calNodesStoch))
     # }
-
+# print(target)
+# print(targetAsScalar)
+# print(topParamsInter)
+# print(extraTargetVars)
     #ccList <- myMcmc_determineCalcAndCopyNodes(model, target)
     # copyNodesDeterm <- ccList$copyNodesDeterm; copyNodesStoch <- ccList$copyNodesStoch
     #pfNewModelValues <- rep(0, length(model$expandNodeNames(latents)))
@@ -553,6 +571,9 @@ if(length(topParams) <5){
   run = function() {
     iterRan <<- my_particleFilter$getLastTimeRan()
     #print(iterRan)
+    nimCopy(from = mvSamplesEst, to = model, nodes = target, nodesTo = target, row = iterRan)
+    #print(values(model, targetAsScalar))
+    # Update top Pars
     if(storeOtherVals)  nimCopy(from = mvSamplesEst, to = model, row = iterRan, rowTo = 1, nodes = extraTargetStore, nodesTo = extraTargetStore)
     # Update top Pars
     #propValueVectorTopPars <- generateProposalVector(topParams)
@@ -560,11 +581,13 @@ if(length(topParams) <5){
     if(multiple) my_sampleTopPars$run(iterRan)
     #print(2)
     #MHAR for additional pars
-    if(multiple) storeParticleLP <<- my_setAndCalculateUpdate$run(iterRan)
-    if(!multiple) storeParticleLP <<- my_particleFilter$getLastLogLik()
+  storeParticleLP <<- my_setAndCalculateUpdate$run(iterRan)
+
     #print(storeParticleLP)
-    #store values from reduced model
-    pfModelValues <<- values(model, latentAsScalar)
+    #store latent values and target model parameters from old values
+    pfModelValues <<- values(model, latentDep)
+    storeModelVals <<- values(model, targetAsScalar)
+   # print(all(storeModelVals == )
     targetModelValues <<- values(model, topParamsInter)
     # print(4)
     if(multiple) topParamsValues <<- values(model, topParams)
@@ -578,8 +601,8 @@ if(length(topParams) <5){
     #print(6)
     my_setAndCalculate$run(propValueVector)
     #add the topParams values to the proposal vector since it will enter the particle filter
-    if(multiple) storeModelVals <<- c(topParamsValues, propValueVector)
-    if(!multiple) storeModelVals <<- propValueVector
+    #if(multiple) storeModelVals <<- c(topParamsValues, propValueVector)
+    #if(!multiple) storeModelVals <<- propValueVector
     #print(7)
     particleLP <- my_particleFilter$run(m = m, iterRun = iterRan, storeModelValues = values(model, targetAsScalar))
    # print(particleLP)
@@ -592,7 +615,7 @@ if(length(topParams) <5){
     # }
     #print(10)
     #print(jump)
-    if(jump ){#& latentSamp) {
+    if(jump){#& latentSamp) {
       ## if we jump, randomly sample latent nodes from pf output and put
       ## into model so that they can be monitored
       nimCopy(from = model, to = mvSaved, row = 1, nodes = target, logProb = TRUE)
@@ -602,23 +625,25 @@ if(length(topParams) <5){
       copy(particleMV, model, latents, latents, index)
       calculate(model, latentDep)
       copy(from = model, to = mvSaved, nodes = latentDep, row = 1, logProb = TRUE)
-      }
-    else if(!jump ){#& latentSamp) {
-      my_particleFilter$setLastLogLik(storeParticleLP)
+      #my_particleFilter$setLastLogLik(particleLP)
+      }else{#& latentSamp) {
       ## if we don't jump, replace model latent nodes with saved latent nodes
-      #values(model, latentAsScalar) <<- pfModelValues
-      copy(from = mvSaved, to = model, nodes = latents, row = 1, logProb = TRUE)
-      values(model, topParamsInter) <<- targetModelValues
-      if(multiple) nimCopy(from = mvSamplesEst, to = model, row = iterRan, nodes = topParams)
+      values(model, latentDep) <<- pfModelValues
+      values(model, targetAsScalar) <<- storeModelVals
+      if(multiple) nimCopy(from = mvSamplesEst, to = model, nodes = topParams,nodesTo = topParams, row = iterRan, rowTo = 1)
       #calculate(model)
       model$calculate()
       #copy(from = model, to = mvSaved, nodes = latent)
+      nimCopy(from = model, to = mvSaved, row = 1, nodes = target, logProb = TRUE)
       nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesDeterm1, logProb = FALSE)
       nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesStoch1, logProbOnly = TRUE)
-      nimCopy(from = model, to = mvSaved, row = 1, nodes = topParamsInter, logProb = TRUE)
+   #   nimCopy(from = model, to = mvSaved, row = 1, nodes = target, logProb = TRUE)
       nimCopy(from = model, to = mvSaved, nodes = latentDep, row = 1, logProb = TRUE)
+      #copy(from = model, to = mvSaved, nodes = latents, row = 1, logProb = TRUE)
       #nimCopy(from = mvSaved, to = model, nodes = latentDep, row = 1, logProb = TRUE)
-    }
+      #storeParticleLP <- my_particleFilter$run(m = m, iterRun = (iterRan+1), storeModelValues = values(model, targetAsScalar))
+     # my_particleFilter$setLastLogLik(storeParticleLP)
+      }
     if(storeOtherVals) nimCopy(from = mvSamplesEst, to = mvSaved, row = iterRan, rowTo = 1, nodes = extraTargetStore, nodesTo = extraTargetStore)
     ##if(jump & !resample)  storeParticleLP <<- particleLP
     if(jump & optimizeM) optimM()
@@ -656,6 +681,25 @@ if(length(topParams) <5){
       propValueVector <- rmnorm_chol(1, values(model,topParamsInter), chol_propCov_scale, 0)  ## last argument specifies prec_param = FALSE
       returnType(double(1))
       return(propValueVector)
+    },
+    generateReducedVals = function(){
+      # if(!jump & !multiple){
+      #   index <- ceiling(runif(1, 0, m))
+      #   lp <- my_particleFilter$run(m = m,
+      #                               iterRun = iterRan,
+      #                               storeModelValues = values(model, targetAsScalar))
+      #   copy(particleMV, model, latents, latents, index)
+      # }else if(jump & !multiple){
+      #   lp <- my_particleFilter$getLastLogLik()
+      #   }
+      lp <- my_setAndCalculateUpdate$run(iterRan)
+     # if(jump & !multiple)
+       # lp <- my_particleFilter$getLastLogLik()
+
+
+      #}
+      returnType(double())
+      return(lp)
     },
     adaptiveProcedure = function(jump = logical()) {
       timesRan <<- timesRan + 1

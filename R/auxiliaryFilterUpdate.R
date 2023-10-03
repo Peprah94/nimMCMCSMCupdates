@@ -284,7 +284,18 @@ auxFStepUpdate <- nimbleFunction(
            auxWts[i] <- auxll[i] + mvWSamples['wts',i][prevInd]
            }
          }
+        }
+
+       if(isAllData){
+         #calc_thisNode_self1 <- calc_thisNode_self[!model$isData(calc_thisNode_self)]
+         #model$simulate(calc_thisNode_self1)
+         nimCopy(mvSamplesEst, model, nodes = calc_thisNode_self1, nodesTo = calc_thisNode_self1, row = iterRun, rowTo = 1)
+         values(model, calc_thisNode_self2) <<- calc_thisNode_self2Vals
+         #print(values(model, calc_thisNode_self2))
+       }else{
+         nimCopy(mvSamplesEst, model, nodes = calc_thisNode_self, nodesTo = calc_thisNode_self, row = iterRun, rowTo = 1)
        }
+       nimCopy(mvSamplesEst, model, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = 1)
        #
        # for(i in 1:m) {
        #   if(notFirst) {
@@ -296,19 +307,7 @@ auxFStepUpdate <- nimbleFunction(
          # Simulate from x_t+1 | x_t.
          # treat z as data for y>1 and simuate for y = 0
        for(i in 1:m){
-            if(isAllData){
-              #calc_thisNode_self1 <- calc_thisNode_self[!model$isData(calc_thisNode_self)]
-              #model$simulate(calc_thisNode_self1)
-              nimCopy(mvSamplesEst, model, nodes = calc_thisNode_self1, nodesTo = calc_thisNode_self1, row = iterRun, rowTo = i)
-              values(model, calc_thisNode_self2) <<- calc_thisNode_self2Vals
-              #print(values(model, calc_thisNode_self2))
-            }else{
-              nimCopy(mvSamplesEst, model, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
-            }
-
-         #nimCopy(mvSamplesEst, mvEWSamples, nodes = thisNode, nodesTo = thisXName, row = iterRun, rowTo = i)
-         #model$simulate(calc_thisNode_self)
-         nimCopy(model, mvWSamples, nodes = thisNode, nodesTo = thisXName, row=i, rowTo = i)
+         nimCopy(mvSamplesEst, mvWSamples, nodes = thisNode, nodesTo = thisNode, row=iterRun, rowTo = i)
          nimCopy(mvWSamples, mvEWSamples, thisXName, thisXName, row = i,  rowTo = i)
          ## Get p(y_t+1 | x_t+1).
        }
