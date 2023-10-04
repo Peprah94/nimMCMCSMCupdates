@@ -54,12 +54,11 @@ bootFStepUpdate <- nimbleFunction(
       # set up occupancy models
       # ensure that values y>0 have z's = 1 and those with y=0 have z's = NA
       isAllData <- all(model$isBinary(latent) == TRUE)
-
-      if(isAllData){
+      #if(isAllData){
         calc_thisNode_self1 <- calc_thisNode_self[!model$isData(calc_thisNode_self)]
         calc_thisNode_self2 <- calc_thisNode_self[model$isData(calc_thisNode_self)]
         calc_thisNode_self2Vals <- rep(1, length(calc_thisNode_self2))
-        }
+        #}
       #calc_thisNode_self1 <- calc_thisNode_self[!model$isData(calc_thisNode_self)]
       #calc_thisNode_self2 <- calc_thisNode_self[model$isData(calc_thisNode_self)]
       #calc_thisNode_self2Vals <- rep(1, length(calc_thisNode_self2))

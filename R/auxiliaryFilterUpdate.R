@@ -68,9 +68,8 @@ auxFStepUpdate <- nimbleFunction(
     ## prevDeterm <- model$getDependencies(prevNode, determOnly = TRUE)
     thisNode <- nodes[iNode]
 
-    isAllData <- latent == "z"
-
-    #all(model$isData(calc_thisNode_self) == TRUE)
+    isAllData <- all(model$isBinary(latent) == TRUE)
+    #if(isAllData){
     calc_thisNode_self1 <- calc_thisNode_self[!model$isData(calc_thisNode_self)]
     calc_thisNode_self2 <- calc_thisNode_self[model$isData(calc_thisNode_self)]
     calc_thisNode_self2Vals <- rep(1, length(calc_thisNode_self2))
