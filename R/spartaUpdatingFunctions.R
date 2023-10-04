@@ -994,7 +994,7 @@ convertSpartaResults <- function(out){
   samplesList  <- vector('list', n.chains)
 
   samplesList <- lapply(1:n.chains, function(x){
-    ret <- as.data.frame(out$BUGSoutput$sims.array[,1,])
+    ret <- out$BUGSoutput$sims.array[,1,]
   })
   names(samplesList)  <- paste0('chain', 1:n.chains)
 
