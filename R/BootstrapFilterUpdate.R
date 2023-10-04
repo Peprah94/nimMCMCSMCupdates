@@ -53,10 +53,16 @@ bootFStepUpdate <- nimbleFunction(
 
       # set up occupancy models
       # ensure that values y>0 have z's = 1 and those with y=0 have z's = NA
-      isAllData <- latent == "z"
-      calc_thisNode_self1 <- calc_thisNode_self[!model$isData(calc_thisNode_self)]
-      calc_thisNode_self2 <- calc_thisNode_self[model$isData(calc_thisNode_self)]
-      calc_thisNode_self2Vals <- rep(1, length(calc_thisNode_self2))
+      isAllData <- all(model$isBinary(latent) == TRUE)
+
+      if(isAllData){
+        calc_thisNode_self1 <- calc_thisNode_self[!model$isData(calc_thisNode_self)]
+        calc_thisNode_self2 <- calc_thisNode_self[model$isData(calc_thisNode_self)]
+        calc_thisNode_self2Vals <- rep(1, length(calc_thisNode_self2))
+        }
+      #calc_thisNode_self1 <- calc_thisNode_self[!model$isData(calc_thisNode_self)]
+      #calc_thisNode_self2 <- calc_thisNode_self[model$isData(calc_thisNode_self)]
+      #calc_thisNode_self2Vals <- rep(1, length(calc_thisNode_self2))
 
 
     ## t is the current time point.
@@ -109,8 +115,9 @@ bootFStepUpdate <- nimbleFunction(
     ids <- integer(m, 0)
     llEst <- numeric(m, init=FALSE)
     out <- numeric(2, init=FALSE)
-
-    if(t > iNodePrev){ #Update from previous records
+#print(t)
+    if(t > iNodePrev){
+      #Update target values
       values(model, targetNodesAsScalar) <<- storeModelValues
     for(i in 1:m) {
       if(notFirst) {
@@ -245,7 +252,7 @@ model$simulate(calc_thisNode_self)
       }
 
       wtsEst <- model$calculate(calc_thisNode_deps)
-      #print(wtsEst)
+     # print(wtsEst)
       #print(wtsEst)
       for(i in 1:m){
         wts[i] <- wtsEst #model$calculate(calc_thisNode_deps)

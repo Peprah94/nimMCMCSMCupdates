@@ -292,7 +292,9 @@ if(length(topParams) <5){
     #Extract the true top parameters. Some of the top parameters depend
     # are intermediate
     trueTopParams <- sapply(topParams, function(x){
+      nodeExpandedTimeDependent <- length(model$expandNodeNames(model$getVarNames(nodes = x))) == length(x)
       #get dependencies of each top Parameter
+      if(nodeExpandedTimeDependent){
       specTargetDeps <- model$getDependencies(x, includeData = FALSE, self = FALSE, stochOnly = TRUE)
       #get the variable name
       varNames <- model$getVarNames(nodes = specTargetDeps)
@@ -301,6 +303,9 @@ if(length(topParams) <5){
 
       numRep <- length(specTargetDeps)
       ret <- ifelse(numRep == 0 | length(isLatent) == 0, TRUE, FALSE)
+      }else{
+        ret <- FALSE
+      }
       return(ret)
     })
 
@@ -387,13 +392,17 @@ if(length(topParams) <5){
         #extraVars[!grepl(seqExtraVars[[x]], extraVars)]
       })%>%
         do.call("c",.)
+      # We do not intend to update these parameters, although they are time dependent.
       extraAdditionalPars <- model$expandNodeNames(additionalPars[!additionalPars %in% latents])
-
+  # Get extra variables that are stochastic
       stochExtraPars <- extraAdditionalPars[model$isStoch(extraAdditionalPars)]
+     # Get extra variables that are deterministic but time dependent
+       detExtraPars <- extraAdditionalPars[!model$isStoch(extraAdditionalPars)][1:iNodePrev]
       #stochExtraParsNodeName <- model$getVarNames(nodes = stochExtraPars)
       #extraTargetVars <- extraVars[!grepl(, extraVars)]
      extraTargetStore <-  c(extraTargetVarsWithAdditionalPars,
-                            stochExtraPars)
+                            stochExtraPars,
+                            detExtraPars)
      storeOtherVals <- TRUE
      extras <- TRUE
       }else{
@@ -574,7 +583,7 @@ if(length(topParams) <5){
     nimCopy(from = mvSamplesEst, to = model, nodes = target, nodesTo = target, row = iterRan)
     #print(values(model, targetAsScalar))
     # Update top Pars
-    if(storeOtherVals)  nimCopy(from = mvSamplesEst, to = model, row = iterRan, rowTo = 1, nodes = extraTargetStore, nodesTo = extraTargetStore)
+    if(storeOtherVals)  nimCopy(from = mvSamplesEst, to = model, nodes = extraTargetStore, nodesTo = extraTargetStore, row = iterRan, rowTo = 1)
     # Update top Pars
     #propValueVectorTopPars <- generateProposalVector(topParams)
     #MHAR for top Level pars
@@ -605,7 +614,7 @@ if(length(topParams) <5){
     #if(!multiple) storeModelVals <<- propValueVector
     #print(7)
     particleLP <- my_particleFilter$run(m = m, iterRun = iterRan, storeModelValues = values(model, targetAsScalar))
-   # print(particleLP)
+   #print(particleLP)
     modelLP1 <- particleLP + getLogProb(model, topParamsInter)
     #print(9)
     jump <- my_decideAndJump$run(modelLP1, modelLP0, 0, 0, iterRan)#, pfModelValues, predVals, topParamsVals)

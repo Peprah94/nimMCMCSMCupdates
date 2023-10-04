@@ -78,7 +78,10 @@ particleFilter_splitModelSteps <- function(model,
   ## thisDeterm <- model$getDependencies(thisNode, determOnly = TRUE)
   ## from above, thisDeterm are determ deps on thisNode that are not needed
   ##    internally, i.e. between elements of thisNode
-  thisData   <- model$getDependencies(thisNode, dataOnly = TRUE)
+
+  ## Include self in this data to sort out the binary data assignment for the
+  ## occupancy models
+  thisData   <- model$getDependencies(thisNode, dataOnly = TRUE, self = FALSE)
   if(length(thisDeterm) > 0) {
     keep_thisDeterm <- logical(length(thisDeterm))
     for(i in seq_along(thisDeterm)) {
@@ -361,6 +364,8 @@ sampleTopPars <- nimbleFunction(
     nimCopy(from = mvSamplesEst, to = model, row = iterRan, rowTo = 1, nodes = target)
     nimCopy(from = mvSamplesEst, to = model, row = iterRan, rowTo = 1, nodes = latents, nodesTo = latents)
     #model$simulate(extraTargetVars)
+
+    # Update model to take into accout the MCMC output before generating new samples
     model$calculate()
     propVector <- generateProposalVector()
     lpD <- my_setAndCalculate$run(propVector)
