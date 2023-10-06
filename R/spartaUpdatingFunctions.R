@@ -995,7 +995,12 @@ convertSpartaResults <- function(out){
 
   samplesList <- lapply(1:n.chains, function(x){
     ret <- out$BUGSoutput$sims.array[,x,]
-  })
+    #get the results in an appropriate format to match the node names in NIMBLE
+    #this works for two examples only
+    colnames(ret) <- stringr::str_replace_all(colnames(ret), c("," = ", "))
+    return(ret)
+  }
+  )
   names(samplesList)  <- paste0('chain', 1:n.chains)
 
   #Return results

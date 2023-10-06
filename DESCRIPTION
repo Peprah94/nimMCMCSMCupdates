@@ -22,4 +22,5 @@ Depends:
     nimbleSMC,
     mcmcse,
     coda,
-    dplyr
+    dplyr,
+    stringr
