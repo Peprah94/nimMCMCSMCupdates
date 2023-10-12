@@ -795,26 +795,56 @@ spartaNimUpdates <- function(model, #nimbleModel
   #samplesList  <- vector('list', n.chains)
 
   if(nCores > 1){
-    message(paste("Parallelisating updated method uning", nCores, "cores"))
+    message(paste("Parallelising updated method using", nCores, "cores"))
   }else{
     message("Fitting updated method without parallelising")
   }
 
-  runUpdatingFunction <- function(chain.iter,
+  runUpdatingFunction <- function(i,
+                                  model, #nimbleModel
+                                  reducedModel,
+                                  MCMCconfiguration, #configuration for MCMC
+                                  pfType,#Either 'auxiliary' or 'bootstrap'. Defaults to auxiliary
+                                  pfControl, #list of controls for particle filter
+                                  nParFiltRun, #Number of PF runs
+                                  #updatePFControl = list(iNodePrev = NULL, M = NULL),
+                                  latent, #the latent variable
+                                  #newData,
+                                  postReducedMCMC, #MCMC results from reduced model
+                                  iNodeAll, # whether we want to use all the years from the reduced model in our updated model
+                                  target, # target variable
+                                  extraVars, #indicator of extra target variabøes
+                                  mcmcScale,
+                                  propCov,
+                                  propCov1,
                                   nCores){
 
+    target = MCMCconfiguration[["target"]]
+    additionalPars = MCMCconfiguration[["additionalPars"]] #other dependent variables you seek to monitor
+    n.iter = MCMCconfiguration[["n.iter"]]
+    n.chains = MCMCconfiguration[["n.chains"]]
+    n.burnin = MCMCconfiguration[["n.burnin"]]
+    n.thin = MCMCconfiguration[["n.thin"]]
+    iNodePrev = pfControl[["iNodePrev"]]
+    M = pfControl[["M"]]
+    timeIndex <- pfControl[["timeIndex"]]
+
+    # set default values for the number of particles and timeIndex
+    if(is.null(nParFiltRun)) nParFiltRun = 5000
+    if(is.null(timeIndex)) timeIndex = 1
+    if(is.null(nCores)) nCores = n.chains
 
     if(nCores > 1) {
       dirName <- file.path(tempdir(), 'nimble_generatedCode', paste0("worker_", i))
     } else dirName = NULL
 
-
+print(dirName)
       timeStart1 <- Sys.time()
 
       # create modelValues for MCMC output
       updateVars <- updateUtils(model = model, #reduced model
                                 reducedModel = reducedModel,
-                                mcmcOut = postReducedMCMC$samples[[chain.iter]],
+                                mcmcOut = postReducedMCMC$samples[[i]],
                                 latent = latent,
                                 target = c(target, additionalPars),
                                 n.iter = n.iter ,
@@ -879,11 +909,11 @@ spartaNimUpdates <- function(model, #nimbleModel
 
 
       #checking if the updated pF works very well
-      #targetAsScalar <- estimationModel$expandNodeNames(target, returnScalarComponents = TRUE)
-      #compiledParticleFilter <- compileNimble(estimationModel,  particleFilterEst)
-
-      #compiledParticleFilter$particleFilterEst$run(m = 1000, iterRun = 9, storeModelValues = values(estimationModel, targetAsScalar))
-
+#       targetAsScalar <- estimationModel$expandNodeNames(target, returnScalarComponents = TRUE)
+#       compiledParticleFilter <- compileNimble(estimationModel,  particleFilterEst)
+#
+#       compiledParticleFilter$particleFilterEst$run(m = 1000, iterRun = 9, storeModelValues = values(estimationModel, targetAsScalar))
+# compiledParticleFilter$particleFilterEst$mvWSamples[["N"]]
 
 
       message("Setting up the MCMC Configuration")
@@ -915,7 +945,7 @@ spartaNimUpdates <- function(model, #nimbleModel
                                               pfControl = pfControl, #list( M = M, iNodePrev = iNodePrev),
                                               pfNparticles = nParFiltRun,
                                               pfType = pfTypeUpdate,
-                                              postSamples = postReducedMCMC$samples[[chain.iter]],
+                                              postSamples = postReducedMCMC$samples[[i]],
                                               mvSamplesEst = mvSamplesEst,
                                               extraVars = extraVars,
                                               iNodePrev = iNodePrev,
@@ -928,9 +958,12 @@ spartaNimUpdates <- function(model, #nimbleModel
       message("Building and compiling the PF MCMC")
       ## build and compile pMCMC sampler
       modelMCMC <- buildMCMC(modelMCMCconf)
+
+      message("Building and compiling the PF MCMC")
       compiledList <- nimble::compileNimble(model,
                                             modelMCMC,
-                                            dirName = dirName)
+                                            resetFunctions = TRUE,
+                                            dirName = NULL)
       timeStart2 <- Sys.time()
       message("Running the PF MCMC")
       #run MCMC
@@ -964,13 +997,44 @@ spartaNimUpdates <- function(model, #nimbleModel
   if(nCores > 1){
     samplesList <- parallel::mclapply(1:n.chains,
                                       runUpdatingFunction,
-                                      nCores = nCores,
+                                      model, #nimbleModel
+                                      reducedModel,
+                                      MCMCconfiguration,
+                                      pfType,
+                                      pfControl,
+                                      nParFiltRun,
+                                      #updatePFControl = list(iNodePrev = NULL, M = NULL),
+                                      latent, #the latent variable
+                                      #newData,
+                                      postReducedMCMC, #MCMC results from reduced model
+                                      iNodeAll, # whether we want to use all the years from the reduced model in our updated model
+                                      target, # target variable
+                                      extraVars, #indicator of extra target variabøes
+                                      mcmcScale,
+                                      propCov,
+                                      propCov1,
+                                      nCores = n.chains,
                                       mc.cores = nCores)
   } else{
     samplesList <- lapply(1:n.chains,
                           runUpdatingFunction,
-                          nCores = nCores,
-                          mc.cores = nCores)
+                          model, #nimbleModel
+                          reducedModel,
+                          MCMCconfiguration,
+                          pfType,
+                          pfControl,
+                          nParFiltRun,
+                          #updatePFControl = list(iNodePrev = NULL, M = NULL),
+                          latent, #the latent variable
+                          #newData,
+                          postReducedMCMC, #MCMC results from reduced model
+                          iNodeAll, # whether we want to use all the years from the reduced model in our updated model
+                          target, # target variable
+                          extraVars, #indicator of extra target variabøes
+                          mcmcScale,
+                          propCov,
+                          propCov1,
+                          nCores = n.chains)
   }
 
 
