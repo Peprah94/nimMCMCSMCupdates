@@ -1,9 +1,16 @@
+---
+title: "dynamicOccTest"
+author: "Kwaku Peprah Adjei"
+date: "2023-10-12"
+output: pdf_document
+---
 
-
+```{r}
 # Occupancy models
 library(nimble)
 library(nimbleSMC)
 library(nimMCMCSMCupdates)
+library(testthat)
 
 # set the configurations for fitting the model
 nyears = 10
@@ -137,12 +144,10 @@ dynOccupancyModels <- function(nyears,
 simData <- dynOccupancyModels(nyears = 10,
                               nsites = 30,
                               nvisits = 6)
+```
 
-# save(simData, file = "simDataDynamicOccupancy.RData")
 
-#load("simDataDynamicOccupancy.RData")
-
-# NIMBLE code
+```{r}
 dynOccupancyCode <- nimbleCode({
 
   # Prior distributions of hyperparameters
@@ -213,9 +218,9 @@ dynOccupancyCode <- nimbleCode({
   }
 
 })
+```
 
-
-# ## define data, constants, and initial values
+```{r}
 z <- apply(simData$y, c(1, 3), function(x){
   ifelse(sum(x) > 0, 1, NA)
 })
@@ -288,13 +293,9 @@ example2ReducedModelTrue <- spartaNimWeights(model = newModelReduced,
                                              n.burnin = nBurnin,
                                              n.thin = nThin)
 )
-#save results
-#save(example2ReducedModelTrue, file= "example4ReducedBootstrapTrue.RData")
-#load("example4ReducedBootstrapTrue.RData")
-################
-# Updated Model
-################
+```
 
+```{r}
 data <- list(
   y = simData$y,#[,,c((iNodePrev ):nyears)],
   windSpeed = simData$covariates$windSpeed,#[,,c((iNodePrev ):nyears)],
@@ -310,21 +311,21 @@ constants <- list(
   nvisits = nvisits
 )
 
-inits <- list(
-  alphaPSig = 2,
-  betaPSig  = 3,
-  alphaPsiSig = 2,
-  betaPsiSig  = 2,
-  alphaGammaSig = 1,
-  betaGammaSig = 1,
-  alphaPhi  = simData$truePars$alphaPhi,
-  betaPhi  = simData$truePars$betaPhi,
-  alphaP =  simData$covariateEffects$alphaP,
-  betaP =  simData$covariateEffects$betaP,
-  alphaPsi=  simData$covariateEffects$alphaPsi,
-  betaPsi= simData$covariateEffects$betaPsi,
-  colonisationProb = 0.05
-)
+  inits <- list(
+    alphaPSig = 2,
+    betaPSig  = 3,
+    alphaPsiSig = 2,
+    betaPsiSig  = 2,
+    alphaGammaSig = 1,
+    betaGammaSig = 1,
+    alphaPhi  = simData$truePars$alphaPhi,
+    betaPhi  = simData$truePars$betaPhi,
+    alphaP =  simData$covariateEffects$alphaP,
+    betaP =  simData$covariateEffects$betaP,
+    alphaPsi=  simData$covariateEffects$alphaPsi,
+    betaPsi= simData$covariateEffects$betaPsi,
+    colonisationProb = 0.3
+  )
 
 # NIMBLE model for updated model
 newModelUpdated <- nimbleModel(dynOccupancyCode,
@@ -332,17 +333,19 @@ newModelUpdated <- nimbleModel(dynOccupancyCode,
                                constants = constants,
                                inits = inits,
                                check = FALSE)
+```
 
-# Fitting the model
-example2UpdatedModelTrue <- spartaNimUpdates(model = newModelUpdated, #nimble model
-                                             reducedModel = newModelReduced,
-                                             latent = "z", #latent variable
-                                             nParFiltRun = numParticles,
+# Unit test for sparta update function
+```{r}
+model = newModelUpdated #nimble model
+                                             reducedModel = newModelReduced
+                                             latent = "z"#latent variable
+                                             nParFiltRun = numParticles
                                              #nParFiltRun = 1000,
-                                             pfType = pfTypeRun,
-                                             propCov = c(1,1,1,1,1,1,0.01)*diag(7),
-                                             mcmcScale = 1,
-                                             extraVars = NULL,
+                                             pfType = pfTypeRun
+                                             propCov = c(1,1,1,1,1,1,0.01)*diag(7)
+                                             mcmcScale = 1
+                                             extraVars = NULL
                                              MCMCconfiguration = list(target = c('alphaPSig', 'betaPSig',
                                                                                  'alphaPsiSig', 'betaPsiSig',
                                                                                  'alphaPhi', 'betaPhi',
@@ -354,94 +357,206 @@ example2UpdatedModelTrue <- spartaNimUpdates(model = newModelUpdated, #nimble mo
                                                                       n.chains = nChains,
                                                                       n.burnin = 10,
                                                                       n.thin = 1
-                                             ),  #saved loglikelihoods from reduced model
-                                             postReducedMCMC = example2ReducedModelTrue,# MCMC summary to use as initial values
+                                             )  #saved loglikelihoods from reduced model
+                                             postReducedMCMC = example2ReducedModelTrue# MCMC summary to use as initial values
                                              pfControl = list(saveAll = TRUE,
                                                               timeIndex = 2,
                                                               smoothing = TRUE,
                                                               mcmc = TRUE,
                                                               M = nyears - iNodePrev,
                                                               iNodePrev = iNodePrev)
-)
-
-#save(example2UpdatedModelTrue, file= "example4UpdatedBootstrapTrue1.RData")
+```
 
 
+```{r}
+ target = MCMCconfiguration[["target"]]
+  additionalPars = MCMCconfiguration[["additionalPars"]] #other dependent variables you seek to monitor
+  n.iter = MCMCconfiguration[["n.iter"]]
+  n.chains = MCMCconfiguration[["n.chains"]]
+  n.burnin = MCMCconfiguration[["n.burnin"]]
+  n.thin = MCMCconfiguration[["n.thin"]]
+  iNodePrev = pfControl[["iNodePrev"]]
+  M = pfControl[["M"]]
+  timeIndex <- pfControl[["timeIndex"]]
 
-save(example2UpdatedModelTrue, file= "example2UpdatedAuxiliaryTrue1.RData")
+  # set default values for the number of particles and timeIndex
+  if(is.null(nParFiltRun)) nParFiltRun = 5000
+  if(is.null(timeIndex)) timeIndex = 1
+
+  samplesList  <- vector('list', n.chains)
+  chain.iter = 1
+  
+  #samplesList <- lapply(as.list(1:n.chains), function(chain.iter){
+    timeStart1 <- Sys.time()
+
+    # create modelValues for MCMC output
+    updateVars <- updateUtils(model = model, #reduced model
+                              reducedModel = reducedModel,
+                mcmcOut = postReducedMCMC$samples[[chain.iter]],
+                          latent = latent,
+              target = c(target, additionalPars),
+              n.iter = n.iter ,
+              m = nParFiltRun,
+              iNodeAll = TRUE,
+              timeIndex = timeIndex)
+
+  mvSamplesEst =  updateVars$mvSamplesEst #saved weights
+  
+  #expect all these values to be equal
+ expect_equal( all(mvSamplesEst[["z"]][[1]][,1] == mvSamplesEst[["z"]][[n.iter]][,1]), TRUE)
+  expect_equal( all(mvSamplesEst[["z"]][[1]][,iNodePrev] == mvSamplesEst[["z"]][[n.iter]][,iNodePrev]), TRUE)
+  
+  # The length of NAs should be the same for t> iNodePrev + 1
+  
+  expect_equal( all(length(is.na(mvSamplesEst[["z"]][[1]][,iNodePrev+1])) == length(is.na(mvSamplesEst[["z"]][[n.iter]][,iNodePrev+1]))), TRUE)  
+```
+  
+  
+```{r}
+  #set initial values to the posterior mean of the saved targets and latent states
+  #if(!is.null(postReducedMCMC$summary)){
+  # inits <- as.list(target)
+  # names(inits) <- target
+  # for(i in 1:length(target)){
+  #   expandTarget <- model$expandNodeNames(target[i])
+  #   inits[[target[i]]] <- c(postReducedMCMC$summary[[chain.iter]][expandTarget, 'Mean'])
+  # }
+
+  # model$setInits(inits)
+  #}
+  ## set options to make history accessible
+  #nimbleOptions(buildInterfacesForCompiledNestedNimbleFunctions = TRUE)
+  #nimbleOptions(MCMCsaveHistory = TRUE)
+  ## Next, set up and run your MCMC.
+  ## Now access the history information:
+ ## only for RW_block
+  #create new model for weights
+  estimationModel <- model$newModel(replicate = TRUE)
+
+  message("Building particle filter for model")
 
 
-#############
-# Baseline Model
-###############
 
-# data <- list(
-#   y = simData$y,
-#   windSpeed = simData$covariates$windSpeed,
-#   elevation = simData$covariates$elevation,
-#   springPrecipitation = simData$covariates$springPrecipitation,
-#   sizeOfBeak = simData$covariates$sizeOfBeak,
-#   z = z
-# )
-#
-# constants <- list(
-#   nyears = nyears,
-#   nsites = nsites,
-#   nvisits = nvisits
-# )
-# inits <- list(
-#   alphaPSig = 1,
-#   betaPSig  = 1,
-#   alphaPsiSig = 1,
-#   betaPsiSig  = 1,
-#   alphaGammaSig = 1,
-#   betaGammaSig = 1,
-#   alphaPhi  = 0,
-#   betaPhi  = 0,
-#   alphaP =  rnorm(1, mean = 0, sd = 1),
-#   betaP =  rnorm(1, mean = 0, sd = 1),
-#   alphaPsi=  rnorm(1, mean = 0, sd = 1),
-#   betaPsi= rnorm(1, mean = 0, sd = 1),
-#   #alphaGamma=  rnorm(constants$nyears, mean = 0, sd = 1),
-#   #betaGamma=  rnorm(constants$nyears, mean = 0, sd = 1),
-#   alphaPhi=  rnorm(1),
-#   betaPhi= rnorm(1)
-# )
-# #
-# #
-# # ## build the model
-# dynOccModel <- nimbleModel(dynOccupancyCode,
-#                            data = data,
-#                            constants = constants,
-#                            inits = inits,
-#                            check = FALSE)
-#
-#
-# # Fitting Baseline model
-# newModel <- dynOccModel$newModel(replicate = TRUE)
-#
-# # Function to run the baseline model
-# baselineModel <- nimMCMCSMCupdates::baselineSpartaEstimation(model = newModel,
-#                                                              latent = "z",
-#                                                              nParFiltRun = numParticles,
-#                                                              pfControl = list(saveAll = TRUE,
-#                                                                               smoothing = FALSE,
-#                                                                               timeIndex = 2),
-#                                                              MCMCconfiguration = list(target = c('alphaPSig', 'betaPSig',
-#                                                                                                  'alphaPsiSig', 'betaPsiSig',
-#                                                                                                  'alphaPhi', 'betaPhi',
-#                                                                                                  'alphaP', 'betaP',
-#                                                                                                  'alphaPsi', 'betaPsi',
-#                                                                                                  "colonisationProb"),
-#                                                                                       additionalPars = c("z", "psi.fs",
-#                                                                                                          'alphaP', 'betaP',
-#                                                                                                          'alphaPsi', 'betaPsi'),
-#                                                                                       n.iter = nIterations,
-#                                                                                       n.chains = nChains,
-#                                                                                       n.burnin = nBurnin,
-#                                                                                       n.thin = nThin))
-# #save results
-# save(baselineModel, file = "example2BaselineSMCAuxiliary.RData")
-#
-#
-#
+  if(is.null(pfType)) pfType <- "bootstrap" #defaults to bootstrap PF
+
+   if(!pfType %in% c("auxiliary", "bootstrap")) stop("Function currently works for auxiliary and bootstap Particle filters")
+   if(pfType == "bootstrap"){
+     particleFilter <- nimMCMCSMCupdates::buildBootstrapFilterUpdate(model,
+                                                              latent,
+                                                              target = target,
+                                                             mvSamplesEst = mvSamplesEst,
+                                                              control = pfControl)
+
+    particleFilterEst <- nimMCMCSMCupdates::buildBootstrapFilterUpdate(estimationModel,
+                                                                    latent,
+                                                                 target = target,
+                                                                 mvSamplesEst = mvSamplesEst,
+                                                                    control = pfControl)
+   }else{
+     particleFilter <- nimMCMCSMCupdates::buildAuxiliaryFilterUpdate(model,
+                                                              nodes = latent,
+                                                               target = target,
+                                                               mvSamplesEst = mvSamplesEst,
+                                                               control = pfControl)
+
+     particleFilterEst <- nimMCMCSMCupdates::buildAuxiliaryFilterUpdate(estimationModel,
+                                                                  latent,
+                                                                  target = target,
+                                                                  mvSamplesEst = mvSamplesEst,
+                                                                  control = pfControl)
+   }
+
+
+  #checking if the updated pF works very well
+  targetAsScalar <- estimationModel$expandNodeNames(target, returnScalarComponents = TRUE)
+  compiledParticleFilter <- compileNimble(estimationModel,  particleFilterEst)
+nParFiltRun <- 5000
+  compiledParticleFilter$particleFilterEst$run(m = nParFiltRun, iterRun = 9, storeModelValues = values(estimationModel, targetAsScalar))
+
+ret <- compiledParticleFilter$particleFilterEst$mvEWSamples[["z"]]
+
+  #expect all these values to be equal
+ expect_equal( all(ret[[1]][,1] == ret[["z"]][[n.iter]][,1]), TRUE)
+  expect_equal( all(ret[[1]][,iNodePrev] == ret[[nParFiltRun]][,iNodePrev]), TRUE)
+    expect_equal( all(ret[[1]][,iNodePrev+3] == ret[[nParFiltRun]][,iNodePrev+3]), TRUE)
+  #calculate psi.fs and monitor
+  testModel <- model$newModel(replicate = TRUE)
+  monitorMatrix <- matrix(NA, nrow = nParFiltRun, ncol= nyears)
+  for(i in 1:nParFiltRun){
+   testModel$z <- ret[[i]]
+    testModel$calculate("psi.fs")
+    #testModel$calculate(testModel$getDependencies("z"))
+    monitorMatrix[i, ] <- testModel$psi.fs
+  }
+  
+  
+  
+```
+
+```{r}
+  message("Setting up the MCMC Configuration")
+  #newModel <- model$newModel(replicate = TRUE)
+  modelMCMCconf <- nimble::configureMCMC(model,
+                                         monitors = c(target, latent, additionalPars),
+                                         nodes = NULL)#, monitors = c(target, latent, additionalPars))
+
+# set sampler to use
+if(pfType == "bootstrap"){
+  pfTypeUpdate = 'bootstrapUpdate'
+  }else{
+  if(pfType == "auxiliary") {
+    pfTypeUpdate = 'auxiliaryUpdate'
+    }
+  }
+  
+  propCov1 <- "identity"
+ #set up MCMC configuration
+  modelMCMCconf$addSampler(target = target,
+                           type = 'RW_PF_blockUpdate',
+                           control = list(latents = latent,
+                                          #target = target,
+                                          adaptive = FALSE,
+                                          propCov = propCov,
+                                          propCov1 = propCov1,
+                                          #adaptInterval = 100,
+                                          scale = mcmcScale,
+                                         # pf = particleFilter,
+                                          pfControl = pfControl, #list( M = M, iNodePrev = iNodePrev),
+                                          pfNparticles = nParFiltRun,
+                                          pfType = pfTypeUpdate,
+                                          postSamples = postReducedMCMC$samples[[chain.iter]],
+                                           mvSamplesEst = mvSamplesEst,
+                                         extraVars = extraVars,
+                                         iNodePrev = iNodePrev,
+                                         additionalPars = additionalPars,
+                                          reducedModel = reducedModel)
+  )
+
+  modelMCMCconf$addMonitors(additionalPars)
+
+  message("Building and compiling the PF MCMC")
+  ## build and compile pMCMC sampler
+  modelMCMC <- buildMCMC(modelMCMCconf)
+  compiledList <- nimble::compileNimble(model,
+                                        modelMCMC)
+  timeStart2 <- Sys.time()
+  message("Running the PF MCMC")
+  #run MCMC
+  mcmc.out <- nimble::runMCMC(compiledList$modelMCMC,
+                              niter = n.iter,
+                              nchains = 1,
+                              nburnin = n.burnin,
+                              #inits = initsList,
+                              thin = n.thin,
+                              setSeed = TRUE,
+                              samples= 123,
+                              samplesAsCodaMCMC = TRUE,
+                              summary = TRUE,
+                              WAIC = FALSE)
+  timeEnd <- Sys.time()
+
+  timetaken1 <- timeEnd - timeStart1
+  timetaken2 <- timeEnd - timeStart2 
+  
+```
+

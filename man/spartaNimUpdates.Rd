@@ -18,7 +18,8 @@ spartaNimUpdates(
   extraVars = NULL,
   mcmcScale = 1,
   propCov = "identity",
-  propCov1 = "identity"
+  propCov1 = "identity",
+  nCores = NULL
 )
 }
 \arguments{

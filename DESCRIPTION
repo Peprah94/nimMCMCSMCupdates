@@ -23,4 +23,5 @@ Depends:
     mcmcse,
     coda,
     dplyr,
-    stringr
+    stringr,
+    parallel

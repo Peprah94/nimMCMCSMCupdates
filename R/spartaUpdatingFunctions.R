@@ -772,7 +772,8 @@ spartaNimUpdates <- function(model, #nimbleModel
                              extraVars = NULL, #indicator of extra target variabøes
                              mcmcScale = 1,
                              propCov = 'identity',
-                             propCov1 = 'identity'
+                             propCov1 = 'identity',
+                             nCores = NULL
 ){
 
 
@@ -789,158 +790,192 @@ spartaNimUpdates <- function(model, #nimbleModel
   # set default values for the number of particles and timeIndex
   if(is.null(nParFiltRun)) nParFiltRun = 5000
   if(is.null(timeIndex)) timeIndex = 1
+  if(is.null(nCores)) nCores = n.chains
 
-  samplesList  <- vector('list', n.chains)
-  samplesList <- lapply(as.list(1:n.chains), function(chain.iter){
-    timeStart1 <- Sys.time()
+  #samplesList  <- vector('list', n.chains)
 
-    # create modelValues for MCMC output
-    updateVars <- updateUtils(model = model, #reduced model
-                              reducedModel = reducedModel,
-                mcmcOut = postReducedMCMC$samples[[chain.iter]],
-                          latent = latent,
-              target = c(target, additionalPars),
-              n.iter = n.iter ,
-              m = nParFiltRun,
-              iNodeAll = TRUE,
-              timeIndex = timeIndex)
-
-  mvSamplesEst =  updateVars$mvSamplesEst #saved weights
-
-  #set initial values to the posterior mean of the saved targets and latent states
-  #if(!is.null(postReducedMCMC$summary)){
-  # inits <- as.list(target)
-  # names(inits) <- target
-  # for(i in 1:length(target)){
-  #   expandTarget <- model$expandNodeNames(target[i])
-  #   inits[[target[i]]] <- c(postReducedMCMC$summary[[chain.iter]][expandTarget, 'Mean'])
-  # }
-
-  # model$setInits(inits)
-  #}
-  ## set options to make history accessible
-  #nimbleOptions(buildInterfacesForCompiledNestedNimbleFunctions = TRUE)
-  #nimbleOptions(MCMCsaveHistory = TRUE)
-  ## Next, set up and run your MCMC.
-  ## Now access the history information:
- ## only for RW_block
-  #create new model for weights
-  estimationModel <- model$newModel(replicate = TRUE)
-
-  message("Building particle filter for model")
-
-
-
-  if(is.null(pfType)) pfType <- "bootstrap" #defaults to bootstrap PF
-
-   if(!pfType %in% c("auxiliary", "bootstrap")) stop("Function currently works for auxiliary and bootstap Particle filters")
-   if(pfType == "bootstrap"){
-     particleFilter <- nimMCMCSMCupdates::buildBootstrapFilterUpdate(model,
-                                                              latent,
-                                                              target = target,
-                                                             mvSamplesEst = mvSamplesEst,
-                                                              control = pfControl)
-
-    particleFilterEst <- nimMCMCSMCupdates::buildBootstrapFilterUpdate(estimationModel,
-                                                                    latent,
-                                                                 target = target,
-                                                                 mvSamplesEst = mvSamplesEst,
-                                                                    control = pfControl)
-   }else{
-     particleFilter <- nimMCMCSMCupdates::buildAuxiliaryFilterUpdate(model,
-                                                              nodes = latent,
-                                                               target = target,
-                                                               mvSamplesEst = mvSamplesEst,
-                                                               control = pfControl)
-
-     particleFilterEst <- nimMCMCSMCupdates::buildAuxiliaryFilterUpdate(estimationModel,
-                                                                  latent,
-                                                                  target = target,
-                                                                  mvSamplesEst = mvSamplesEst,
-                                                                  control = pfControl)
-   }
-
-
-  #checking if the updated pF works very well
-  #targetAsScalar <- estimationModel$expandNodeNames(target, returnScalarComponents = TRUE)
-  #compiledParticleFilter <- compileNimble(estimationModel,  particleFilterEst)
-
-  #compiledParticleFilter$particleFilterEst$run(m = 1000, iterRun = 9, storeModelValues = values(estimationModel, targetAsScalar))
-
-
-
-  message("Setting up the MCMC Configuration")
-  #newModel <- model$newModel(replicate = TRUE)
-  modelMCMCconf <- nimble::configureMCMC(model,
-                                         monitors = c(target, latent, additionalPars),
-                                         nodes = NULL)#, monitors = c(target, latent, additionalPars))
-
-# set sampler to use
-if(pfType == "bootstrap"){
-  pfTypeUpdate = 'bootstrapUpdate'
+  if(nCores > 1){
+    message(paste("Parallelisating updated method uning", nCores, "cores"))
   }else{
-  if(pfType == "auxiliary") {
-    pfTypeUpdate = 'auxiliaryUpdate'
-    }
+    message("Fitting updated method without parallelising")
   }
 
-  #set up MCMC configuration
-  modelMCMCconf$addSampler(target = target,
-                           type = 'RW_PF_blockUpdate',
-                           control = list(latents = latent,
-                                          #target = target,
-                                          adaptive = FALSE,
-                                          propCov = propCov,
-                                          propCov1 = propCov1,
-                                          #adaptInterval = 100,
-                                          scale = mcmcScale,
-                                         # pf = particleFilter,
-                                          pfControl = pfControl, #list( M = M, iNodePrev = iNodePrev),
-                                          pfNparticles = nParFiltRun,
-                                          pfType = pfTypeUpdate,
-                                          postSamples = postReducedMCMC$samples[[chain.iter]],
-                                           mvSamplesEst = mvSamplesEst,
-                                         extraVars = extraVars,
-                                         iNodePrev = iNodePrev,
-                                         additionalPars = additionalPars,
-                                          reducedModel = reducedModel)
-  )
+  runUpdatingFunction <- function(chain.iter,
+                                  nCores){
 
-  modelMCMCconf$addMonitors(additionalPars)
 
-  message("Building and compiling the PF MCMC")
-  ## build and compile pMCMC sampler
-  modelMCMC <- buildMCMC(modelMCMCconf)
-  compiledList <- nimble::compileNimble(model,
-                                        modelMCMC)
-  timeStart2 <- Sys.time()
-  message("Running the PF MCMC")
-  #run MCMC
-  mcmc.out <- nimble::runMCMC(compiledList$modelMCMC,
-                              niter = n.iter,
-                              nchains = 1,
-                              nburnin = n.burnin,
-                              #inits = initsList,
-                              thin = n.thin,
-                              setSeed = TRUE,
-                              samples= 123,
-                              samplesAsCodaMCMC = TRUE,
-                              summary = TRUE,
-                              WAIC = FALSE)
-  timeEnd <- Sys.time()
+    if(nCores > 1) {
+      dirName <- file.path(tempdir(), 'nimble_generatedCode', paste0("worker_", i))
+    } else dirName = NULL
 
-  timetaken1 <- timeEnd - timeStart1
-  timetaken2 <- timeEnd - timeStart2
 
-  #compiledList$modelMCMC$samplerFunctions[[1]]$getScaleHistory()
-  #compiledList$modelMCMC$samplerFunctions[[1]]$getAcceptanceHistory()
-  #compiledList$modelMCMC$samplerFunctions[[1]]$getPropCovHistory()
+      timeStart1 <- Sys.time()
 
-  retList <- list()
-  retList$timeRun <- timetaken2
-  retList$samples <- mcmc.out$samples
-  return(retList)
-  })
+      # create modelValues for MCMC output
+      updateVars <- updateUtils(model = model, #reduced model
+                                reducedModel = reducedModel,
+                                mcmcOut = postReducedMCMC$samples[[chain.iter]],
+                                latent = latent,
+                                target = c(target, additionalPars),
+                                n.iter = n.iter ,
+                                m = nParFiltRun,
+                                iNodeAll = TRUE,
+                                timeIndex = timeIndex)
+
+      mvSamplesEst =  updateVars$mvSamplesEst #saved weights
+
+      #set initial values to the posterior mean of the saved targets and latent states
+      #if(!is.null(postReducedMCMC$summary)){
+      # inits <- as.list(target)
+      # names(inits) <- target
+      # for(i in 1:length(target)){
+      #   expandTarget <- model$expandNodeNames(target[i])
+      #   inits[[target[i]]] <- c(postReducedMCMC$summary[[chain.iter]][expandTarget, 'Mean'])
+      # }
+
+      # model$setInits(inits)
+      #}
+      ## set options to make history accessible
+      #nimbleOptions(buildInterfacesForCompiledNestedNimbleFunctions = TRUE)
+      #nimbleOptions(MCMCsaveHistory = TRUE)
+      ## Next, set up and run your MCMC.
+      ## Now access the history information:
+      ## only for RW_block
+      #create new model for weights
+      estimationModel <- model$newModel(replicate = TRUE)
+
+      message("Building particle filter for model")
+
+
+
+      if(is.null(pfType)) pfType <- "bootstrap" #defaults to bootstrap PF
+
+      if(!pfType %in% c("auxiliary", "bootstrap")) stop("Function currently works for auxiliary and bootstap Particle filters")
+      if(pfType == "bootstrap"){
+        particleFilter <- nimMCMCSMCupdates::buildBootstrapFilterUpdate(model,
+                                                                        latent,
+                                                                        target = target,
+                                                                        mvSamplesEst = mvSamplesEst,
+                                                                        control = pfControl)
+
+        particleFilterEst <- nimMCMCSMCupdates::buildBootstrapFilterUpdate(estimationModel,
+                                                                           latent,
+                                                                           target = target,
+                                                                           mvSamplesEst = mvSamplesEst,
+                                                                           control = pfControl)
+      }else{
+        particleFilter <- nimMCMCSMCupdates::buildAuxiliaryFilterUpdate(model,
+                                                                        nodes = latent,
+                                                                        target = target,
+                                                                        mvSamplesEst = mvSamplesEst,
+                                                                        control = pfControl)
+
+        particleFilterEst <- nimMCMCSMCupdates::buildAuxiliaryFilterUpdate(estimationModel,
+                                                                           latent,
+                                                                           target = target,
+                                                                           mvSamplesEst = mvSamplesEst,
+                                                                           control = pfControl)
+      }
+
+
+      #checking if the updated pF works very well
+      #targetAsScalar <- estimationModel$expandNodeNames(target, returnScalarComponents = TRUE)
+      #compiledParticleFilter <- compileNimble(estimationModel,  particleFilterEst)
+
+      #compiledParticleFilter$particleFilterEst$run(m = 1000, iterRun = 9, storeModelValues = values(estimationModel, targetAsScalar))
+
+
+
+      message("Setting up the MCMC Configuration")
+      #newModel <- model$newModel(replicate = TRUE)
+      modelMCMCconf <- nimble::configureMCMC(model,
+                                             monitors = c(target, latent, additionalPars),
+                                             nodes = NULL)#, monitors = c(target, latent, additionalPars))
+
+      # set sampler to use
+      if(pfType == "bootstrap"){
+        pfTypeUpdate = 'bootstrapUpdate'
+      }else{
+        if(pfType == "auxiliary") {
+          pfTypeUpdate = 'auxiliaryUpdate'
+        }
+      }
+
+      #set up MCMC configuration
+      modelMCMCconf$addSampler(target = target,
+                               type = 'RW_PF_blockUpdate',
+                               control = list(latents = latent,
+                                              #target = target,
+                                              adaptive = FALSE,
+                                              propCov = propCov,
+                                              propCov1 = propCov1,
+                                              #adaptInterval = 100,
+                                              scale = mcmcScale,
+                                              # pf = particleFilter,
+                                              pfControl = pfControl, #list( M = M, iNodePrev = iNodePrev),
+                                              pfNparticles = nParFiltRun,
+                                              pfType = pfTypeUpdate,
+                                              postSamples = postReducedMCMC$samples[[chain.iter]],
+                                              mvSamplesEst = mvSamplesEst,
+                                              extraVars = extraVars,
+                                              iNodePrev = iNodePrev,
+                                              additionalPars = additionalPars,
+                                              reducedModel = reducedModel)
+      )
+
+      modelMCMCconf$addMonitors(additionalPars)
+
+      message("Building and compiling the PF MCMC")
+      ## build and compile pMCMC sampler
+      modelMCMC <- buildMCMC(modelMCMCconf)
+      compiledList <- nimble::compileNimble(model,
+                                            modelMCMC,
+                                            dirName = dirName)
+      timeStart2 <- Sys.time()
+      message("Running the PF MCMC")
+      #run MCMC
+      mcmc.out <- nimble::runMCMC(compiledList$modelMCMC,
+                                  niter = n.iter,
+                                  nchains = 1,
+                                  nburnin = n.burnin,
+                                  #inits = initsList,
+                                  thin = n.thin,
+                                  setSeed = TRUE,
+                                  samples= 123,
+                                  samplesAsCodaMCMC = TRUE,
+                                  summary = TRUE,
+                                  WAIC = FALSE)
+      timeEnd <- Sys.time()
+
+      timetaken1 <- timeEnd - timeStart1
+      timetaken2 <- timeEnd - timeStart2
+
+      #compiledList$modelMCMC$samplerFunctions[[1]]$getScaleHistory()
+      #compiledList$modelMCMC$samplerFunctions[[1]]$getAcceptanceHistory()
+      #compiledList$modelMCMC$samplerFunctions[[1]]$getPropCovHistory()
+
+      retList <- list()
+      retList$timeRun <- timetaken2
+      retList$samples <- mcmc.out$samples
+      return(retList)
+    }
+
+
+  if(nCores > 1){
+    samplesList <- parallel::mclapply(1:n.chains,
+                                      runUpdatingFunction,
+                                      nCores = nCores,
+                                      mc.cores = nCores)
+  } else{
+    samplesList <- lapply(1:n.chains,
+                          runUpdatingFunction,
+                          nCores = nCores,
+                          mc.cores = nCores)
+  }
+
+
+
+  #samplesList <- lapply(as.list(1:n.chains), function(chain.iter))
 
   #set names for samples frpm various chains
   names(samplesList)  <- paste0('chain', 1:n.chains)
