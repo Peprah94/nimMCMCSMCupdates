@@ -962,8 +962,9 @@ print(dirName)
       message("Building and compiling the PF MCMC")
       compiledList <- nimble::compileNimble(model,
                                             modelMCMC,
-                                            resetFunctions = TRUE,
-                                            dirName = NULL)
+                                            resetFunctions = TRUE#,
+                                            #dirName = NULL
+                                            )
       timeStart2 <- Sys.time()
       message("Running the PF MCMC")
       #run MCMC
