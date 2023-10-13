@@ -963,7 +963,7 @@ print(dirName)
       compiledList <- nimble::compileNimble(model,
                                             modelMCMC,
                                             resetFunctions = TRUE,
-                                            dirName = NULL)
+                                            dirName = dirName)
       timeStart2 <- Sys.time()
       message("Running the PF MCMC")
       #run MCMC
@@ -1034,7 +1034,7 @@ print(dirName)
                           mcmcScale,
                           propCov,
                           propCov1,
-                          nCores = n.chains)
+                          nCores = 1)
   }
 
 
