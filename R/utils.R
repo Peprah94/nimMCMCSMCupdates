@@ -339,7 +339,7 @@ myMcmc_determineCalcAndCopyNodes <- function(model, target) {
 sampleTopPars <- nimbleFunction(
   name = 'sampleTopPars',
   #contains = sampler_BASE,
-  setup = function(model, mvSaved, topParams, mvSamplesEst, scale, latents, target) {
+  setup = function(model, mvSaved, topParams, mvSamplesEst, scale, latents, target, propCov1) {
     ccList <- myMcmc_determineCalcAndCopyNodes(model, topParams)
     calcNodes <- ccList$calcNodes
     copyNodesDeterm <- ccList$copyNodesDeterm; copyNodesStoch <- ccList$copyNodesStoch  # not used: calcNodes, calcNodesNoSelf
@@ -348,8 +348,7 @@ sampleTopPars <- nimbleFunction(
     calcNodesProposalStage <- calcNodes[1:finalTargetIndex]
     calcNodesDepStage <- calcNodes[-(1:finalTargetIndex)]
 
-    d1 <- length(topParams)
-    propCov1 <- diag(d1)
+
     propCovOriginal1 <- propCov1
     chol_propCov1 <- chol(propCov1)
     chol_propCov_scale1 <- scale * chol_propCov1

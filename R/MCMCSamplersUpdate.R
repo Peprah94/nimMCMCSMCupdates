@@ -244,7 +244,7 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     adaptFactorExponent <- extractControlElement(control, 'adaptFactorExponent',  0.8)
     scale               <- extractControlElement(control, 'scale',                1)
     propCov             <- extractControlElement(control, 'propCov',              'identity')
-    propCov1             <- extractControlElement(control, 'propCov',              'identity')
+    propCov1             <- extractControlElement(control, 'propCov1',              'identity')
     existingPF          <- extractControlElement(control, 'pf',                   NULL)
     m                   <- extractControlElement(control, 'pfNparticles',         1000)
     filterType          <- extractControlElement(control, 'pfType',               'bootstrapUpdate')
@@ -456,7 +456,7 @@ if(length(topParams) <5){
     my_calcAdaptationFactor <- calcAdaptationFactor(d, adaptFactorExponent)
     #if(multiple)
     #mvSavedNew <- modelValues(model)
-    my_sampleTopPars <- sampleTopPars(model, mvSaved, topParams, mvSamplesEst, scale, latents, target)
+
 
     if(!is.null(existingPF)) {
       my_particleFilter <- existingPF
@@ -576,7 +576,12 @@ if(length(topParams) <5){
     if(!isSymmetric(propCov))                           stop('propCov matrix must be symmetric')
     if(length(targetAsScalar) < 2)                      stop('less than two top-level targets; cannot use RW_PF_block sampler, try RW_PF sampler')
     if(any(target%in%model$expandNodeNames(latents)))   stop('PMCMC \'target\' argument cannot include latent states')
-  },
+
+    d1 <- length(topParams)
+    #propCov1 <- diag(d1)
+    if(is.character(propCov1) && propCov1 == 'identity')     propCov1 <- diag(d)
+    my_sampleTopPars <- sampleTopPars(model, mvSaved, topParams, mvSamplesEst, scale, latents, target,propCov1)
+    },
   run = function() {
     iterRan <<- my_particleFilter$getLastTimeRan()
     #print(iterRan)
