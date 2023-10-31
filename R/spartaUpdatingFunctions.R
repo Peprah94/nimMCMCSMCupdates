@@ -909,10 +909,10 @@ print(dirName)
 
 
       #checking if the updated pF works very well
-#       targetAsScalar <- estimationModel$expandNodeNames(target, returnScalarComponents = TRUE)
-#       compiledParticleFilter <- compileNimble(estimationModel,  particleFilterEst)
+      #targetAsScalar <- estimationModel$expandNodeNames(target, returnScalarComponents = TRUE)
+      # compiledParticleFilter <- compileNimble(estimationModel,  particleFilterEst)
 #
-#       compiledParticleFilter$particleFilterEst$run(m = 1000, iterRun = 9, storeModelValues = values(estimationModel, targetAsScalar))
+      # compiledParticleFilter$particleFilterEst$run(m = 5, iterRun = 9, storeModelValues = values(estimationModel, targetAsScalar))
 # compiledParticleFilter$particleFilterEst$mvWSamples[["N"]]
 
 
