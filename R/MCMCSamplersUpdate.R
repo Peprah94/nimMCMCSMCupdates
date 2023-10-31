@@ -388,7 +388,8 @@ if(length(topParams) <5){
       #seqExtraVars <- paste0("[[", 1:iNodePrev, "]]")
       extraTargetVars <- lapply(seq_along(extraVars), function(x){
         extraVarsScalar <- model$expandNodeNames(node = extraVars[[x]])
-        extraVarsScalar[(iNodePrev +1) : length(extraVarsScalar)]
+        ret <- extraVarsScalar[(iNodePrev +1) : length(extraVarsScalar)]
+        return(ret[!is.na(ret)])
         #extraVars[!grepl(seqExtraVars[[x]], extraVars)]
       })%>%
         do.call("c",.)
