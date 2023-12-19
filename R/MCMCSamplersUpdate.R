@@ -313,6 +313,10 @@ if(length(topParams) <5){
     topParamsTRUE <- topParams[unlist(trueTopParams )]
 
     trueParamsFALSE <- topParams[!unlist(trueTopParams )]
+
+    #is the intermediate variable in extra vars?
+    isInterInExtraVars <- trueParamsFALSE %in% model$expandNodeNames(extraVars)
+
     topParams <- topParamsTRUE
 
     print(topParams)
@@ -336,12 +340,19 @@ if(length(topParams) <5){
     if(is.null(extraVars)){
     topParamsInter <- unique(c(topParamsDeps[!topParamsDeps %in% c(model$expandNodeNames(latents), model$expandNodeNames(dataNodes), model$expandNodeNames(additionalPars))], trueParamsFALSE))
     }else{
+      if(!isInterInExtraVars){
       topParamsInter <- unique(c(topParamsDeps[!topParamsDeps %in% c(model$expandNodeNames(latents),
                                                                      model$expandNodeNames(dataNodes),
                                                                      model$expandNodeNames(additionalPars),
                                                                      extraTargetVarsWithAdditionalPars
                                                                      )],
-                                 trueParamsFALSE))
+                                 trueParamsFALSE))}else{
+                                   topParamsInter <- unique(c(topParamsDeps[!topParamsDeps %in% c(model$expandNodeNames(latents),
+                                                                                                  model$expandNodeNames(dataNodes),
+                                                                                                  model$expandNodeNames(additionalPars),
+                                                                                                  extraTargetVarsWithAdditionalPars
+                                   )]))
+                                 }
     }
     print(topParamsInter)
 }
@@ -398,12 +409,27 @@ if(length(topParams) <5){
   # Get extra variables that are stochastic
       stochExtraPars <- extraAdditionalPars[model$isStoch(extraAdditionalPars)]
      # Get extra variables that are deterministic but time dependent
-       detExtraPars <- extraAdditionalPars[!model$isStoch(extraAdditionalPars)][1:iNodePrev]
-      #stochExtraParsNodeName <- model$getVarNames(nodes = stochExtraPars)
+       detExtraPars <- extraAdditionalPars[!model$isStoch(extraAdditionalPars)]#[1:iNodePrev]
+       detExtraParsVarNames <- model$getVarNames(nodes = detExtraPars)
+       #filterControl$timeIndex > 1 &
+
+         nDimLatents <- dim(mvSamplesEst[[latent]][[1]])[2]
+       detExtras <- lapply(detExtraParsVarNames, function(x){
+         namesNodes <- model$expandNodeNames(x)
+         if(filterControl$timeIndex>1 & length(namesNodes)==nDimLatents){
+           ret <- namesNodes[1:iNodePrev]
+         }else{
+           ret <- namesNodes
+         }
+         return(ret)
+       })%>%
+         do.call("c", .)
+
+       #stochExtraParsNodeName <- model$getVarNames(nodes = stochExtraPars)
       #extraTargetVars <- extraVars[!grepl(, extraVars)]
      extraTargetStore <-  c(extraTargetVarsWithAdditionalPars,
                             stochExtraPars,
-                            detExtraPars)
+                            detExtras)
      storeOtherVals <- TRUE
      extras <- TRUE
       }else{
@@ -550,7 +576,7 @@ if(length(topParams) <5){
 
     ccList1 <- myMcmc_determineCalcAndCopyNodes(model, topParamsInter)
     copyNodesDeterm1 <- ccList1$copyNodesDeterm; copyNodesStoch1 <- ccList1$copyNodesStoch
-
+print(extraTargetStore)
     #initialize the decision process
     #jump <- 0
     #pfModelValues <- rep(0, length(latents))

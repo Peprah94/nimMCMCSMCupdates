@@ -912,8 +912,8 @@ print(dirName)
       #targetAsScalar <- estimationModel$expandNodeNames(target, returnScalarComponents = TRUE)
       # compiledParticleFilter <- compileNimble(estimationModel,  particleFilterEst)
 #
-      # compiledParticleFilter$particleFilterEst$run(m = 5, iterRun = 9, storeModelValues = values(estimationModel, targetAsScalar))
-# compiledParticleFilter$particleFilterEst$mvWSamples[["N"]]
+      # compiledParticleFilter$particleFilterEst$run(m = 100, iterRun = 100, storeModelValues = values(estimationModel, targetAsScalar))
+ #compiledParticleFilter$particleFilterEst$mvWSamples[["z"]][[100]][1:10, 51]
 
 
       message("Setting up the MCMC Configuration")

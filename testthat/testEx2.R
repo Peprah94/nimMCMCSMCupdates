@@ -6,17 +6,17 @@ library(nimbleSMC)
 library(nimMCMCSMCupdates)
 
 # set the configurations for fitting the model
-nyears = 10
-nsites = 30
+nyears = 4
+nsites = 10
 nvisits = 6
-iNodePrev = 7
-pfTypeRun = "auxiliary"
+iNodePrev = 3
+pfTypeRun = "bootstrap"
 
 # Set the configurations for MCMC
-nIterations = 1000
-nBurnin = 50
+nIterations = 100
+nBurnin = 5
 nChains = 2
-nThin = 2
+nThin = 1
 #nThin = 1
 numParticles = 10
 
@@ -134,9 +134,9 @@ dynOccupancyModels <- function(nyears,
 }
 
 # Simulating and saving data
-simData <- dynOccupancyModels(nyears = 10,
-                              nsites = 30,
-                              nvisits = 6)
+simData <- dynOccupancyModels(nyears = nyears,
+                              nsites = nsites,
+                              nvisits = nvisits)
 
 # save(simData, file = "simDataDynamicOccupancy.RData")
 
@@ -352,7 +352,7 @@ example2UpdatedModelTrue <- spartaNimUpdates(model = newModelUpdated, #nimble mo
                                                                       additionalPars = c("z", "psi.fs"),
                                                                       n.iter = (nIterations - nBurnin)/nThin,
                                                                       n.chains = nChains,
-                                                                      n.burnin = 10,
+                                                                      n.burnin = 1,
                                                                       n.thin = 1
                                              ),  #saved loglikelihoods from reduced model
                                              postReducedMCMC = example2ReducedModelTrue,# MCMC summary to use as initial values

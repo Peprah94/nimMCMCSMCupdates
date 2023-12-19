@@ -254,36 +254,36 @@ auxFStepUpdate <- nimbleFunction(
 
 
        nimCopy(from = mvSamplesEst, to = model, nodes = target, row = iterRun, rowTo = 1)
-        if(notFirst){
-          for(i in 1:m) {
-           if(smoothing == 1){
-             ## smoothing is only allowed if saveAll is TRUE, so this should be ok.
-             ## i.e., mvEWSamples have been resampled.
-             nimCopy(mvEWSamples, mvWSamples, nodes = allPrevNodes,
-                     nodesTo = allPrevNodes, row = i, rowTo=i)
-           }
-           nimCopy(mvWSamples, model, prevXName, prevNode, row=i)
-           model$calculate(prevDeterm)
-           ## The lookahead steps may include determ and stoch steps.
-           if(lookahead == "mean"){
-             for(j in 1:numLatentNodes)
-               auxFuncList[[j]]$lookahead()
-           } else auxFuncList[[1]]$lookahead()
-
-           ## Get p(y_t+1 | x_t+1).
-           auxll[i] <- model$calculate(calc_thisNode_deps)
-           if(is.nan(auxll[i])){
-             return(-Inf)
-           }
-           ## Multiply (on log scale) by weight from time t.
-           if(auxll[i] == -Inf | auxll[i] == Inf){
-             auxWts[i] <- mvWSamples['wts',i][prevInd]
-             auxll[i] <- 0
-           }else{
-           auxWts[i] <- auxll[i] + mvWSamples['wts',i][prevInd]
-           }
-         }
-        }
+        # if(notFirst){
+        #   for(i in 1:m) {
+        #    if(smoothing == 1){
+        #      ## smoothing is only allowed if saveAll is TRUE, so this should be ok.
+        #      ## i.e., mvEWSamples have been resampled.
+        #      nimCopy(mvEWSamples, mvWSamples, nodes = allPrevNodes,
+        #              nodesTo = allPrevNodes, row = i, rowTo=i)
+        #    }
+        #    nimCopy(mvWSamples, model, prevXName, prevNode, row=i)
+        #    model$calculate(prevDeterm)
+        #    ## The lookahead steps may include determ and stoch steps.
+        #    if(lookahead == "mean"){
+        #      for(j in 1:numLatentNodes)
+        #        auxFuncList[[j]]$lookahead()
+        #    } else auxFuncList[[1]]$lookahead()
+        #
+        #    ## Get p(y_t+1 | x_t+1).
+        #    auxll[i] <- model$calculate(calc_thisNode_deps)
+        #    if(is.nan(auxll[i])){
+        #      return(-Inf)
+        #    }
+        #    ## Multiply (on log scale) by weight from time t.
+        #    if(auxll[i] == -Inf | auxll[i] == Inf){
+        #      auxWts[i] <- mvWSamples['wts',i][prevInd]
+        #      auxll[i] <- 0
+        #    }else{
+        #    auxWts[i] <- auxll[i] + mvWSamples['wts',i][prevInd]
+        #    }
+        #  }
+        # }
 
        if(isAllData){
          #calc_thisNode_self1 <- calc_thisNode_self[!model$isData(calc_thisNode_self)]
@@ -319,7 +319,7 @@ auxFStepUpdate <- nimbleFunction(
          }
          if(notFirst){
            ## Construct weight following step 4 of paper.
-           wts[i] <- ll[i] -auxll[i]
+           wts[i] <- ll[i] #-auxll[i]
          }
          else{
            ## First step has no auxiliary weights.
