@@ -348,8 +348,8 @@ if(length(topParams) <5){
                                                                      )],
                                  trueParamsFALSE))}else{
                                    topParamsInter <- unique(c(topParamsDeps[!topParamsDeps %in% c(model$expandNodeNames(latents),
-                                                                                                  model$expandNodeNames(dataNodes),
-                                                                                                  model$expandNodeNames(additionalPars),
+                                                                                                 model$expandNodeNames(dataNodes),
+                                                                                                 model$expandNodeNames(additionalPars),
                                                                                                   extraTargetVarsWithAdditionalPars
                                    )]))
                                  }
@@ -413,7 +413,7 @@ if(length(topParams) <5){
        detExtraParsVarNames <- model$getVarNames(nodes = detExtraPars)
        #filterControl$timeIndex > 1 &
 
-         nDimLatents <- dim(mvSamplesEst[[latent]][[1]])[2]
+         nDimLatents <- dim(mvSamplesEst[[latents]][[1]])[2]
        detExtras <- lapply(detExtraParsVarNames, function(x){
          namesNodes <- model$expandNodeNames(x)
          if(filterControl$timeIndex>1 & length(namesNodes)==nDimLatents){

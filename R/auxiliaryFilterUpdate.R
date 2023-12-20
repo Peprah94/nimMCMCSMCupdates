@@ -357,8 +357,8 @@ auxFStepUpdate <- nimbleFunction(
          # outLL <- log(sum(exp(wts - maxWt))) + maxWt - log(m)
        if(notFirst){
          maxWt <- max(wts)
-         maxAuxWt <- max(auxWts)
-         outLL <- log(sum(exp(wts - maxWt))) + maxWt - log(m) + log(sum(exp(auxWts - maxAuxWt))) + maxAuxWt
+         #maxAuxWt <- max(auxWts)
+         outLL <- log(sum(exp(wts - maxWt))) + maxWt - log(m) #+ log(sum(exp(auxWts - maxAuxWt))) + maxAuxWt
        } else {
          maxWt <- max(wts)
          outLL <- log(sum(exp(wts - maxWt))) + maxWt - log(m)
