@@ -236,14 +236,14 @@ model$simulate(calc_thisNode_self)
       }
 
       for(i in 1:m) {
-        if(notFirst) {
-          if(smoothing == 1){
-            nimCopy(mvEWSamples, mvWSamples, nodes = allPrevNodes,
-                    nodesTo = allPrevNodes, row = i, rowTo=i)
-          }
-          nimCopy(mvSamplesEst, model, nodes = prevXName, nodesTo = prevNode, row = iterRun, rowTo = i)
-          #model$calculate(prevDeterm)
-        }
+        # if(notFirst) {
+        #   if(smoothing == 1){
+        #     nimCopy(mvEWSamples, mvWSamples, nodes = allPrevNodes,
+        #             nodesTo = allPrevNodes, row = i, rowTo=i)
+        #   }
+        #   nimCopy(mvSamplesEst, model, nodes = prevXName, nodesTo = prevNode, row = iterRun, rowTo = i)
+        #   #model$calculate(prevDeterm)
+        # }
 
         # copy results to mvSaved values
         nimCopy(mvSamplesEst, mvWSamples, nodes = thisNode, nodesTo = thisXName, row=iterRun, rowTo = i)

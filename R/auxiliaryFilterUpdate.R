@@ -311,6 +311,7 @@ auxFStepUpdate <- nimbleFunction(
          ## Get p(y_t+1 | x_t+1).
        }
 
+       ## Get p(y_t+1 | x_t+1).
          llEst <- model$calculate(calc_thisNode_deps)
          for(i in 1:m){
            ll[i] <- llEst
