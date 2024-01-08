@@ -1,11 +1,17 @@
 Package: nimMCMCSMCupdates
 Type: Package
-Title: What the Package Does (Title Case)
+Title: Sequential Monte Carlo algorithm for data assimilation problems in ecology using NIMBLE.
 Version: 0.1.0
-Author: Who wrote it
-Maintainer: The package maintainer <yourself@somewhere.net>
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
+Author: Kwaku Peprah Adjei, Rob Cooke, Robert B. O'Hara, Nick J. B. Isaac
+Maintainer: The package maintainer <kadjeipeprah94@gmail.com>
+Description: Biodiversity indicators are estimated from biodiversity monitoring 
+programs. These indicators are used to make conservation and management decisions. 
+In mose ecological applications, models fitted to the biodiversity data are fitted using 
+Markov Chain Monte Carlo (MCMC) algorithms, and these models can be computationally expensive.
+This package provides functions to update these biodiversity indicators with a relatively
+shorter period. The algorithm assumes that a model has already been fitted using MCMC, 
+and the posterior distribution of latent states and model parameters are updated using
+importance sampling.
 Imports:
     ggplot2,
     MASS,
