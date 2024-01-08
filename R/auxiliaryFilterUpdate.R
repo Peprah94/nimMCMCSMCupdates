@@ -1,10 +1,12 @@
 
-##  Contains code to run auxiliary particle filters.
+##  Contains code to run auxiliary particle filters for the updating process.
 ##  We have a build function (buildAuxiliaryFilter),
 ##  and step function (auxFStep)
 ##
 ##  This version of the APF is based on
 ##  Pitt et al., 2012
+
+## This code is a copied and editted version of the nimbleSMC source code.
 
 auxStepVirtual2 <- nimble::nimbleFunctionVirtual(
   run = function(m = integer(),iterRun = integer(0),storeModelValues = double(1)) {
@@ -50,12 +52,23 @@ auxSimFuncUpdate  = nimble::nimbleFunction(
 auxFStepUpdate <- nimbleFunction(
   name = 'auxFStepUpdate',
   contains = auxStepVirtual2,
-  setup = function(model, mvEWSamples, mvWSamples, nodes, iNode, names,
-                   saveAll, smoothing, lookahead, resamplingMethod,
+  setup = function(model,
+                   mvEWSamples,
+                   mvWSamples,
+                   nodes,
+                   iNode,
+                   names,
+                   saveAll,
+                   smoothing,
+                   lookahead,
+                   resamplingMethod,
                    silent = TRUE,
-                   iNodePrev, target,
+                   iNodePrev, # number of years used to fit the reduced model
+                   target,
                    latent,
-                   mvSamplesEst) {
+                   mvSamplesEst #stored posterior samples from the already fitted models
+                   ) {
+
     notFirst <- iNode != 1
     last <- iNode == length(nodes)
     prevNode <- nodes[if(notFirst) iNode-1 else iNode]
@@ -65,18 +78,16 @@ auxFStepUpdate <- nimbleFunction(
     calc_thisNode_self <- modelSteps$calc_thisNode_self
     calc_thisNode_deps <- modelSteps$calc_thisNode_deps
     targetNodesAsScalar <- model$expandNodeNames(target, returnScalarComponents = TRUE)
-    ## prevDeterm <- model$getDependencies(prevNode, determOnly = TRUE)
     thisNode <- nodes[iNode]
 
     isAllData <- all(model$isBinary(latent) == TRUE)
-    #if(isAllData){
     calc_thisNode_self1 <- calc_thisNode_self[!model$isData(calc_thisNode_self)]
     calc_thisNode_self2 <- calc_thisNode_self[model$isData(calc_thisNode_self)]
     calc_thisNode_self2Vals <- rep(1, length(calc_thisNode_self2))
-    ## thisDeterm <- model$getDependencies(thisNode, determOnly = TRUE)
-    ## thisData   <- model$getDependencies(thisNode, dataOnly = TRUE)
+
     ## t is the current time point.
     t <- iNode
+
     ## Get names of x and xs node for current and previous time point,
     ## will be different depending on whether we are saving all time points
     ## or only the most recent.
@@ -98,7 +109,7 @@ auxFStepUpdate <- nimbleFunction(
       currInd <- 1
       prevInd <- 1
     }
-#iterRun <- 1
+
     auxFuncList <- nimbleFunctionList(auxFuncVirtualUpdate)
     allLatentNodes <- model$expandNodeNames(calc_thisNode_self, sort = TRUE) ## They should already be sorted, but sorting here is a failsafe.
     numLatentNodes <- length(allLatentNodes)
@@ -125,7 +136,10 @@ auxFStepUpdate <- nimbleFunction(
     if(resamplingMethod == 'systematic')
       resamplerFunctionList[[1]] <- systematicResampleFunction()
   },
-  run = function(m = integer(),iterRun = integer(0),storeModelValues = double(1)) {
+  run = function(m = integer(), #number of particles
+                 iterRun = integer(0), #MCMC iteration index
+                 storeModelValues = double(1) #proposed model parameter values
+                 ) {
     returnType(double())
     auxll <- numeric(m, init=FALSE)
     auxWts <- numeric(m, init=FALSE)
@@ -134,10 +148,17 @@ auxFStepUpdate <- nimbleFunction(
     ll <- numeric(m, init=FALSE)
     #wts <- ids <- auxWts <- auxll <- ll <- numeric(m)
     #out <- numeric(2)
-    ## This is the look-ahead step, not conducted for first time-point.
+
+
+    ################
+    # Updating the new time steps: t+1, t+2, ..., T
+    ############
     if(t > iNodePrev){
+      # change the values of the model parameters to the proposed values
    values(model, targetNodesAsScalar) <<- storeModelValues
-    if(notFirst){
+
+     ## This is the look-ahead step, not conducted for first time-point.
+   if(notFirst){
       for(i in 1:m) {
         if(smoothing == 1){
           ## smoothing is only allowed if saveAll is TRUE, so this should be ok.
@@ -180,7 +201,7 @@ auxFStepUpdate <- nimbleFunction(
       }
 
       # Simulate from x_t+1 | x_t.
-      # treat z as data for y>1 and simuate for y = 0
+      # treat z as data for y>0 and simuate for y = 0
       if(isAllData){
         #calc_thisNode_self1 <- calc_thisNode_self[!model$isData(calc_thisNode_self)]
         model$simulate(calc_thisNode_self1)
@@ -250,8 +271,9 @@ auxFStepUpdate <- nimbleFunction(
 
     return(outLL)
      }else{
-# for t < iNodePrev
-
+########################
+#    Copying information from reduced model
+#######################
 
        nimCopy(from = mvSamplesEst, to = model, nodes = target, row = iterRun, rowTo = 1)
         # if(notFirst){
@@ -415,15 +437,14 @@ auxFStepUpdate <- nimbleFunction(
 #' next data point.  These pre-weights are used to conduct an initial resampling step before
 #' propagation.
 #'
-#'  The resulting specialized particle filter algorthm will accept a
-#'  single integer argument (\code{m}, default 10,000), which specifies the number
-#'  of random \'particles\' to use for estimating the log-likelihood.  The algorithm
+#'  This updated particle filter algorithm will accept integer argument (\code{m}, default 10,000), which specifies the number
+#'  of random \'particles\', integer argument \code{iterun} which specifies the iteration index, double argument \code{storeModelValues} which is the proposed values of the model paramters, to use for estimating the log-likelihood.  The algorithm
 #'  returns the estimated log-likelihood value, and saves
 #'  unequally weighted samples from the posterior distribution of the latent
 #'  states in the \code{mvWSamples} modelValues object, with corresponding logged weights in \code{mvWSamples['wts',]}.
 #'  An equally weighted sample from the posterior can be found in the \code{mvEWsamp} modelValues object.
 #'
-#'   The auxiliary particle filter uses a lookahead function to select promising particles before propagation.  This function can eithre be the expected
+#'   The auxiliary particle filter uses a lookahead function to select promising particles before propagation.  This function can either be the expected
 #'   value of the latent state at the next time point (\code{lookahead = 'mean'}) or a simulation from the distribution of the latent state at the next time point (\code{lookahead = 'simulate'}), conditioned on the current particle.
 #'
 #'  @section \code{returnESS()} Method:

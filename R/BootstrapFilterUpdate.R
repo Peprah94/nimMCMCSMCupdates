@@ -54,15 +54,10 @@ bootFStepUpdate <- nimbleFunction(
       # set up occupancy models
       # ensure that values y>0 have z's = 1 and those with y=0 have z's = NA
       isAllData <- all(model$isBinary(latent) == TRUE)
-      #if(isAllData){
+
         calc_thisNode_self1 <- calc_thisNode_self[!model$isData(calc_thisNode_self)]
         calc_thisNode_self2 <- calc_thisNode_self[model$isData(calc_thisNode_self)]
         calc_thisNode_self2Vals <- rep(1, length(calc_thisNode_self2))
-        #}
-      #calc_thisNode_self1 <- calc_thisNode_self[!model$isData(calc_thisNode_self)]
-      #calc_thisNode_self2 <- calc_thisNode_self[model$isData(calc_thisNode_self)]
-      #calc_thisNode_self2Vals <- rep(1, length(calc_thisNode_self2))
-
 
     ## t is the current time point.
     t <- iNode
@@ -89,7 +84,7 @@ bootFStepUpdate <- nimbleFunction(
     ess <- 0
 
     resamplerFunctionList <- nimbleFunctionList(resamplerVirtual)
-    #defaultResamplerFlag <- FALSE
+    defaultResamplerFlag <- FALSE
     if(resamplingMethod == 'default'){
       resamplerFunctionList[[1]] <- residualResampleFunction()
       defaultResamplerFlag <- TRUE
@@ -114,9 +109,13 @@ bootFStepUpdate <- nimbleFunction(
     ids <- integer(m, 0)
     llEst <- numeric(m, init=FALSE)
     out <- numeric(2, init=FALSE)
-#print(t)
+
+    ################
+    # Updating the new time steps: t+1, t+2, ..., T
+    ############
+
     if(t > iNodePrev){
-      #Update target values
+
       values(model, targetNodesAsScalar) <<- storeModelValues
     for(i in 1:m) {
       if(notFirst) {
@@ -219,7 +218,10 @@ model$simulate(calc_thisNode_self)
 
     return(out)
     }else{
-      # for t < iNodePrev
+      ########################
+      #    Copying information from reduced model
+      #######################
+
       # Copy the target values into the model too
       nimCopy(from = mvSamplesEst, to = model, nodes = target, row = iterRun, rowTo = 1)
 
