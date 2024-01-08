@@ -338,7 +338,6 @@ model$simulate(calc_thisNode_self)
 #' @param control  A list specifying different control options for the particle filter.  Options are described in the details section below.
 #' @author Kwaku Peprah Adjei
 #' @details
-#'
 #' Each of the \code{control()} list options are described in detail here:
 #' \describe{
 #'  \item{thresh}{ A number between 0 and 1 specifying when to resample: the resampling step will occur when the

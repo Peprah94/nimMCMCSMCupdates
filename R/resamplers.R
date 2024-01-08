@@ -1,3 +1,9 @@
+############################################
+#   This is copied from the nimble smc package (Version )
+#######################################
+
+
+
 ## This file contains four resampling methods for use in PF algos.
 ## The methods (multinomial, residual, stratified, systematic), follow the
 ## algorithms described in "Resampling in particle filters" (Hol, 2004).
