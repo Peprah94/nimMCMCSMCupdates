@@ -1,3 +1,6 @@
+#' This sampler is modified from the algorithms in nimbleSMC. We only provide algorithms for
+#' Block sampling. Other samplers will be explored in the future.
+
 #' Particle Filtering MCMC Sampling Algorithms
 #'
 #' Details of the particle filtering MCMC sampling algorithms provided in nimbleSMC.
@@ -71,32 +74,45 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     else if(!('lookahead' %in% names(filterControl))) {
       filterControl$lookahead <- 'simulate'
     }
+
+    #############################
+    # Obtaining latent states, hyperparameters (topParams) and intermediate parameters and the
+    #their dependencies
+    ##########################
     ## node list generation
     targetAsScalar <- model$expandNodeNames(target, returnScalarComponents = TRUE)
+
+    # Get dependencies of the target variables
     calcNodes <- model$getDependencies(target)
+
+    # We always sample the latent states with this application and get their dependencies
     latentSamp <- TRUE
-    MCMCmonitors <- tryCatch(parent.frame(2)$conf$monitors, error = function(e) e)
-    if(identical(MCMCmonitors, TRUE))
-      latentSamp <- TRUE
-    else if(any(model$expandNodeNames(latents) %in% model$expandNodeNames(MCMCmonitors)))
-      latentSamp <- TRUE
-
     latentDep <- model$getDependencies(latents)
+    # Get the paramters we are sampling
+    # MCMCmonitors <- tryCatch(parent.frame(2)$conf$monitors, error = function(e) e)
+    # if(identical(MCMCmonitors, TRUE))
+    #   latentSamp <- TRUE
+    # else if(any(model$expandNodeNames(latents) %in% model$expandNodeNames(MCMCmonitors)))
+    #   latentSamp <- TRUE
 
 
-    #tt <- model$getParents(nodes = latents, stochOnly = TRUE,self = FALSE, upstream =  TRUE)
-
-
+    ## Now we try to seperate the hyperparameters from the other model parameters
+    ## We do this by looking at the model graph and going one step back at a time.
+    ## Currently, we want to update model parameter that are greater than 5
+    ## This is not an efficient approach, but it works for the application in the manuscript.
 
     # Get top parameters
     topParams <- model$getNodeNames(stochOnly=TRUE, includeData=FALSE, topOnly=TRUE)
-if(length(topParams) <5){
+
+
+    if(length(topParams) <5){
   topParams <- topParams
   trueParamsFALSE <- topParams
 }else{
-    #Extract the true top parameters. Some of the top parameters depend
+    #Extract the true top parameters (hyperparameters). Some of the top parameters depend
     # are intermediate
     trueTopParams <- sapply(topParams, function(x){
+      # Is the target variable time dependent? Its a logical value with FALSE for time dependence
       nodeExpandedTimeDependent <- length(model$expandNodeNames(model$getVarNames(nodes = x))) == length(x)
       #get dependencies of each top Parameter
       if(nodeExpandedTimeDependent){
@@ -105,7 +121,7 @@ if(length(topParams) <5){
       varNames <- model$getVarNames(nodes = specTargetDeps)
       #Find out of it is part of topParameters or latent state
       isLatent <- varNames[varNames%in%c(latents, topParams[!topParams %in% x])]
-
+      #Number of intermediate parameters (other model parameters)
       numRep <- length(specTargetDeps)
       ret <- ifelse(numRep == 0 | length(isLatent) == 0, TRUE, FALSE)
       }else{
@@ -114,23 +130,28 @@ if(length(topParams) <5){
       return(ret)
     })
 
-    #Extract the top Parameters
+    ## The above gives an index of the parameters that are hyperparameters and those that are not
     topParamsTRUE <- topParams[unlist(trueTopParams )]
-
     trueParamsFALSE <- topParams[!unlist(trueTopParams )]
 
-    #is the intermediate variable in extra vars?
+    # Is the intermediate variable in extra vars? Extra vars are other stochastic variables we do not intend to update
     isInterInExtraVars <- trueParamsFALSE %in% model$expandNodeNames(extraVars)
 
+    # For consistency with the nimbleSMC work, we assign the hyperparameters as the topParameters
     topParams <- topParamsTRUE
 
     print(topParams)
-    # Get dependencies of top Parameters
+
+
+    # Get dependencies of top Parameters that does not include itself and data components
     topParamsDeps <- model$getDependencies(topParams, self = FALSE, includeData = FALSE, stochOnly = TRUE)
+
+     # Get dependencies of top Parameters that does not include itself and data components
     calcNodesTopParams <- model$getDependencies(topParams)
-    #Get the data Node
+    #Get the data Node that includes the vars and the data itself
     dataNodes <- model$getVarNames(nodes = model$getDependencies(latents, downstream = TRUE, stochOnly = TRUE, self = FALSE))
-    #dataNodes <- dataNodes[model$isData(nodes = dataNodes)]
+
+    # Now we focus on the extra variables
     if(!is.null(extraVars)){
       #extraVars <- model$expandNodeNames(node = extraVars)
       #seqExtraVars <- paste0("[[", 1:iNodePrev, "]]")
