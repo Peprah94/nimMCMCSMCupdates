@@ -25,10 +25,17 @@ devtools::install_github("Peprah94/nimMCMCSMCupdates")
 
 *nimMCMCSMCupdates* includes a set of functions that are used to update
 posterior distribution of latent states and model parameters using the
-bootstap and auxiliary particle filters. Refer to the \[main
-paper\]\[https://peprah94.github.io/#Publications\] and vignette on
-\[method\]\[https://github.com/Peprah94/nimMCMCSMCupdates/blob/main/vignette/methodUnderstanding.pdf\]
+bootstap and auxiliary particle filters. Refer to the [main
+paper](https://peprah94.github.io/#Publications) and vignette on
+[method](https://github.com/Peprah94/nimMCMCSMCupdates/blob/main/vignette/methodUnderstanding.pdf)
 for further details on the methodology.
+
+| Function name                  | Function description                                                                                          |
+|--------------------------------|---------------------------------------------------------------------------------------------------------------|
+| `buildAuxiliaryFilterUpdate()` | Create an updated auxiliary particle filter algorithm to estimate log-likelihood.                             |
+| `buildBootstrapFilterUpdate()` | Create an updated bootstrap particle filter algorithm to estimate log-likelihood.                             |
+| `sampler_RW_PF_blockUpdate()`  | The particle filter block sampler to perform particle MCMC.                                                   |
+| `datasetOut()`                 | Perform dataset-out cross-validation, which calculates the impact individual datasets have on the full model. |
 
 ## Updating models with the R-package
 
