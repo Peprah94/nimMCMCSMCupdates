@@ -1,6 +1,7 @@
 # nimMCMCSMCupdates
+[![DOI](https://zenodo.org/badge/616969908.svg)](https://zenodo.org/doi/10.5281/zenodo.10495691)
 
-# Introduction
+## Introduction
 
 This package comes with a sequential Monte Carlo algorithm for data
 assimilation problems in ecology. This package is edited from the
