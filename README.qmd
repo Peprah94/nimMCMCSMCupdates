@@ -37,7 +37,7 @@ devtools::install_github("Peprah94/nimMCMCSMCupdates")
 ## Updating models with the R-package
 
 ```{r, include=FALSE}
-knitr::opts_chunk$set(warning = FALSE) 
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
 ```
 
 We load the package needed to run the script. This package loads *nimble* and *nimbleSMC* as dependencies.

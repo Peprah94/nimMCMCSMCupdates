@@ -48,55 +48,6 @@ We load the package needed to run the script. This package loads
 library(nimMCMCSMCupdates)
 ```
 
-    Loading required package: nimble
-
-    nimble version 1.0.1 is loaded.
-    For more information on NIMBLE and a User Manual,
-    please visit https://R-nimble.org.
-
-    Note for advanced users who have written their own MCMC samplers:
-      As of version 0.13.0, NIMBLE's protocol for handling posterior
-      predictive nodes has changed in a way that could affect user-defined
-      samplers in some situations. Please see Section 15.5.1 of the User Manual.
-
-
-    Attaching package: 'nimble'
-
-    The following object is masked from 'package:stats':
-
-        simulate
-
-    Loading required package: nimbleSMC
-
-
-    Attaching package: 'nimbleSMC'
-
-    The following objects are masked from 'package:nimble':
-
-        buildAuxiliaryFilter, buildBootstrapFilter, buildEnsembleKF,
-        buildIteratedFilter2, buildLiuWestFilter
-
-    Loading required package: mcmcse
-
-    Loading required package: coda
-
-    Loading required package: dplyr
-
-
-    Attaching package: 'dplyr'
-
-    The following objects are masked from 'package:stats':
-
-        filter, lag
-
-    The following objects are masked from 'package:base':
-
-        intersect, setdiff, setequal, union
-
-    Loading required package: stringr
-
-    Loading required package: parallel
-
 We simulate a dynamic occupancy model, described in simulation study two
 in the [main article](https://peprah94.github.io/#Publications), with
 further detains in Kéry and Royle (2020).
@@ -400,30 +351,7 @@ numParticles = 10
                                  constants = constants,
                                  inits = inits,
                                  check = FALSE)
-```
 
-    Defining model
-
-    Building model
-
-    Setting data and initial values
-
-      [Note] 'sizeOfBeak' is provided in 'data' but is not a variable in the model and is being ignored.
-
-      [Note] 'alphaGammaSig' has initial values but is not a variable in the model and is being ignored.
-
-      [Note] 'betaGammaSig' has initial values but is not a variable in the model and is being ignored.
-
-    Running calculate on model
-      [Note] Any error reports that follow may simply reflect missing values in model variables.
-
-    Checking model sizes and dimensions
-
-      [Note] This model is not fully initialized. This is not an error.
-             To see which variables are not initialized, use model$initializeInfo().
-             For more information on model initialization, see help(modelInitialization).
-
-``` r
   # Fitting the model
   mcmcResults <- spartaNimWeights(model = newModelReduced,
                                                latent = "z",
@@ -449,15 +377,6 @@ numParticles = 10
   )
 ```
 
-    Checking model sizes and dimensions
-      [Note] This model is not fully initialized. This is not an error.
-             To see which variables are not initialized, use model$initializeInfo().
-             For more information on model initialization, see help(modelInitialization).
-
-    Compiling
-      [Note] This may take a minute.
-      [Note] Use 'showCompilerOutput = TRUE' to see C++ compilation details.
-
     ===== Monitors =====
     thin = 1: alphaP, alphaPhi, alphaPsi, alphaPSig, alphaPsiSig, betaP, betaPhi, betaPsi, betaPSig, betaPsiSig, colonisationProb, psi.fs, z
     ===== Samplers =====
@@ -475,22 +394,10 @@ numParticles = 10
       - betaPsi
     binary sampler (367)
       - z[]  (367 elements)
-
-    Compiling
-      [Note] This may take a minute.
-      [Note] Use 'showCompilerOutput = TRUE' to see C++ compilation details.
-
-    running chain 1...
-
     |-------------|-------------|-------------|-------------|
     |-------------------------------------------------------|
-
-    running chain 2...
-
     |-------------|-------------|-------------|-------------|
     |-------------------------------------------------------|
-
-    Returning the results
 
 Note that the `spartaNimWeights` function can also be used to fit the
 full model by settung $t = nyears$. or $iNodePrev = nyears$.
@@ -526,36 +433,13 @@ numParticles = 10
                                  constants = constants,
                                  inits = inits,
                                  check = FALSE)
-```
 
-    Defining model
-
-    Building model
-
-    Setting data and initial values
-
-      [Note] 'sizeOfBeak' is provided in 'data' but is not a variable in the model and is being ignored.
-
-      [Note] 'alphaGammaSig' has initial values but is not a variable in the model and is being ignored.
-
-      [Note] 'betaGammaSig' has initial values but is not a variable in the model and is being ignored.
-
-    Running calculate on model
-      [Note] Any error reports that follow may simply reflect missing values in model variables.
-
-    Checking model sizes and dimensions
-
-      [Note] This model is not fully initialized. This is not an error.
-             To see which variables are not initialized, use model$initializeInfo().
-             For more information on model initialization, see help(modelInitialization).
-
-``` r
 #   # Fitting the model
   updatedModelResults <- nimMCMCSMCupdates::spartaNimUpdates(model = newModelUpdated, #nimble model
                                                reducedModel = newModelReduced,
                                                latent = "z",
                                                nParFiltRun = numParticles,
-                                               pfType = "bootstrap",
+                                               pfType = "bootstrap", #change to auxiliary for auxiliary PF
                                                propCov = c(1,1,1,1,1,1,0.01)*diag(7),
                                                mcmcScale = 1,
                                                extraVars = NULL,
@@ -581,102 +465,34 @@ numParticles = 10
   )
 ```
 
-    Fitting updated method without parallelising
-
     NULL
-
-    Saving unsampled and sampled values in model values for updating
-
-    Checking model sizes and dimensions
-
-      [Note] This model is not fully initialized. This is not an error.
-             To see which variables are not initialized, use model$initializeInfo().
-             For more information on model initialization, see help(modelInitialization).
-
-    Building particle filter for model
-
-    Setting up the MCMC Configuration
-
     ===== Monitors =====
     thin = 1: alphaP, alphaPhi, alphaPsi, alphaPSig, alphaPsiSig, betaP, betaPhi, betaPsi, betaPSig, betaPsiSig, colonisationProb, psi.fs, z
     ===== Samplers =====
     (no samplers assigned)
     ===== Comments =====
-
-      [Warning] No samplers assigned for 409 nodes, use conf$getUnsampledNodes() for node names.
-
     thin = 1: alphaP, alphaPhi, alphaPsi, alphaPSig, alphaPsiSig, betaP, betaPhi, betaPsi, betaPSig, betaPsiSig, colonisationProb, psi.fs, z
-
-    Building and compiling the PF MCMC
-
-      [Warning] No samplers assigned for 398 nodes, use conf$getUnsampledNodes() for node names.
-
     [1] "alphaPSig"   "betaPSig"    "alphaPsiSig" "betaPsiSig" 
     [1] "alphaP"           "betaP"            "alphaPsi"         "betaPsi"         
     [5] "alphaPhi"         "betaPhi"          "colonisationProb"
     [1] TRUE
     [1] "z"
-
-    Building and compiling the PF MCMC
-
-    Compiling
-      [Note] This may take a minute.
-      [Note] Use 'showCompilerOutput = TRUE' to see C++ compilation details.
-
-    Running the PF MCMC
-
-    running chain 1...
-
     |-------------|-------------|-------------|-------------|
     |-------------------------------------------------------|
     NULL
-
-    Saving unsampled and sampled values in model values for updating
-
-    Checking model sizes and dimensions
-
-      [Note] This model is not fully initialized. This is not an error.
-             To see which variables are not initialized, use model$initializeInfo().
-             For more information on model initialization, see help(modelInitialization).
-
-    Building particle filter for model
-
-    Setting up the MCMC Configuration
-
     ===== Monitors =====
     thin = 1: alphaP, alphaPhi, alphaPsi, alphaPSig, alphaPsiSig, betaP, betaPhi, betaPsi, betaPSig, betaPsiSig, colonisationProb, psi.fs, z
     ===== Samplers =====
     (no samplers assigned)
     ===== Comments =====
-
-      [Warning] No samplers assigned for 409 nodes, use conf$getUnsampledNodes() for node names.
-
     thin = 1: alphaP, alphaPhi, alphaPsi, alphaPSig, alphaPsiSig, betaP, betaPhi, betaPsi, betaPSig, betaPsiSig, colonisationProb, psi.fs, z
-
-    Building and compiling the PF MCMC
-
-      [Warning] No samplers assigned for 398 nodes, use conf$getUnsampledNodes() for node names.
-
     [1] "alphaPSig"   "betaPSig"    "alphaPsiSig" "betaPsiSig" 
     [1] "alphaP"           "betaP"            "alphaPsi"         "betaPsi"         
     [5] "alphaPhi"         "betaPhi"          "colonisationProb"
     [1] TRUE
     [1] "z"
-
-    Building and compiling the PF MCMC
-
-    Compiling
-      [Note] This may take a minute.
-      [Note] Use 'showCompilerOutput = TRUE' to see C++ compilation details.
-
-    Running the PF MCMC
-
-    running chain 1...
-
     |-------------|-------------|-------------|-------------|
     |-------------------------------------------------------|
-
-    Returning the results
 
 The samples from the algorithm are of class `mcmc.list`. Therefore,
 packages like *ggmcmc* (Fernández-i-Marín 2016) and *coda* (Plummer et
@@ -721,13 +537,13 @@ updatedModelResults$timeRun
 ```
 
     $chain1
-    Time difference of 1.558042 secs
+    Time difference of 1.518683 secs
 
     $chain2
-    Time difference of 1.515025 secs
+    Time difference of 1.543938 secs
 
     $all.chains
-    Time difference of 3.073067 secs
+    Time difference of 3.062621 secs
 
 # References
 
