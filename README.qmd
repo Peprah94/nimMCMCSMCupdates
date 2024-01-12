@@ -29,8 +29,10 @@ devtools::install_github("Peprah94/nimMCMCSMCupdates")
 |--------------|----------------------------------------------------------|
 | `buildAuxiliaryFilterUpdate()`   | Create an updated auxiliary particle filter algorithm to estimate log-likelihood.                                          |
 | `buildBootstrapFilterUpdate()`  | Create an updated bootstrap particle filter algorithm to estimate log-likelihood.                                                                     |
-| `sampler_RW_PF_blockUpdate()`    | The particle filter block sampler to perform particle MCMC.                                                       |
-| `datasetOut()` | Perform dataset-out cross-validation, which calculates the impact individual datasets have on the full model. |
+| `sampler_RW_PF_blockUpdate()`    | The particle filter block sampler to perform particle MCMC.                        |
+| `spartaNimWeights()` | Fit reduced model using MCMC. |
+| `spartaNimUpdates()` | Fit updated model using the smc algorithm in [main paper](https://peprah94.github.io/#Publications). |
+| `updateUtils()` | Create a modelValues object for the MCMC samples from the reduced model. |
 
                         
 
@@ -40,6 +42,138 @@ devtools::install_github("Peprah94/nimMCMCSMCupdates")
 
 ## Updating models with the R-package
 
+```{r, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+```
+
+```{r}
+library(dplyr)
+library(nimMCMCSMCupdates)
+```
+
+```{r, echo=FALSE}
+# set the configurations for fitting the model
+nyears = 30
+nsites = 300
+nvisits = 3
+iNodePrevAll = c(29, 25) # the time steps used to fit the reduced models
+
+# Set the configurations for MCMC
+nIterations = 50000
+nBurnin = 20000
+nChains = 2
+nThin = 15
+numParticles = 10
+
+dynOccupancyModels <- function(nyears, #number of years
+                               nsites, #number of sites
+                               nvisits, #number of visits
+                               #intercept and covariate effect for initial occupancy probability
+                               fixedPars = list(alphaPhi = - 2,
+                                                betaPhi = 1.5),
+                               # standard deviation hyperparameters
+                               hyperParsSig = list(alphaP = 2,
+                                                   betaP = 3,
+                                                   alphaPsi = 2,
+                                                   betaPsi = 3)){
+
+  set.seed(1994)
+
+  # Simulating covariates
+  windSpeed <- array(runif(nyears*nsites*nvisits, -1, 1),
+                     dim = c(nsites, nvisits, nyears))
+  elevation <- runif(nsites, -1,1)
+  springPrecipitation <- matrix(runif(nyears*nsites, -1, 1),
+                                nrow = nsites,
+                                ncol = nyears)
+  sizeOfBeak <- matrix(runif(nyears*nsites, -1,1),
+                       nrow = nsites,
+                       ncol = nyears)
+
+  # Simulating parameters
+  alphaP <- rnorm(1, mean = 4, sd = hyperParsSig$alphaP)
+  betaP <- rnorm(1, mean = -2, sd = hyperParsSig$betaP)
+  alphaPsi <- rnorm(1, mean = 3, sd = hyperParsSig$alphaPsi)
+  betaPsi <- rnorm(1, mean = -2.5, sd = hyperParsSig$betaPsi)
+
+  # Detection Probability
+  detectProb <- array(NA, dim = c(nsites, nvisits, nyears))
+  for(year.tag in 1:nyears){
+    for(site.tag in 1:nsites){
+      for(visit.tag in 1:nvisits){
+        detectProb[site.tag, visit.tag, year.tag] <- plogis(alphaP + betaP* windSpeed[site.tag, visit.tag, year.tag])
+      }
+    }
+  }
+
+  # Initial occupancy probability psi
+  initOccuProb <- plogis(fixedPars$alphaPhi + fixedPars$betaPhi*elevation)
+
+  # Persistence and colonisation probability
+  persistenceProb  <- matrix(NA,  nrow = nsites, ncol = nyears)
+  for(year.tag in 1:nyears){
+    for(site.tag in 1:nsites){
+      persistenceProb[site.tag,  year.tag] <- plogis(alphaPsi + betaPsi* springPrecipitation[site.tag, year.tag])
+    }
+  }
+
+  colonisationProb <- 0.05
+
+  # Latent state and observations
+  y <- array(NA, dim = c(nsites, nvisits, nyears))
+  z <- matrix(NA,nrow = nsites,ncol = nyears)
+
+  # Initial Presence/Absence
+  for(site.tag in 1:nsites){
+    z[ site.tag, 1] <- rbinom(1, 1, initOccuProb[site.tag])
+  }
+
+  # True presence/absence
+  for(year.tag in 2:nyears){
+    for(site.tag in 1:nsites){
+      z[ site.tag, year.tag] <- rbinom(1, 1, z[site.tag, (year.tag -1)] * persistenceProb[site.tag,  year.tag] + (1 - z[site.tag, (year.tag -1)])*colonisationProb)#[site.tag,  year.tag])
+    }
+  }
+
+  #observations
+  for(year.tag in 1:nyears){
+    for(site.tag in 1:nsites){
+      for(visit.tag in 1:nvisits){
+        y[site.tag, visit.tag, year.tag] <- rbinom(1, 1,  z[site.tag, year.tag] * detectProb[site.tag, visit.tag, year.tag])
+      }
+    }
+  }
+
+  # Proportion of occupied sites
+  psi.fs <- colMeans(z)
+
+  # Return list
+  retList <- list()
+  retList$y = y
+  retList$z = z
+  retList$covariates = list(windSpeed = windSpeed,
+                            elevation = elevation,
+                            springPrecipitation = springPrecipitation,
+                            sizeOfBeak = sizeOfBeak)
+  retList$trueSigma = hyperParsSig
+  retList$truePars = fixedPars
+  retList$covariateEffects = list(alphaP = alphaP,
+                                  betaP = betaP,
+                                  alphaPsi = alphaPsi,
+                                  betaPsi = betaPsi)
+
+  retList$occSites = psi.fs
+
+  return(retList)
+}
+
+# Simulating and saving data
+simData <- dynOccupancyModels(nyears = 20,
+                               nsites = 30,
+                               nvisits = 3)
+
+ save(simData, file = "data/simDataDynamicOccupancy.RData")
+```
 
 ## Other Materials
 

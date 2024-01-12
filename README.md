@@ -30,14 +30,21 @@ paper](https://peprah94.github.io/#Publications) and vignette on
 [method](https://github.com/Peprah94/nimMCMCSMCupdates/blob/main/vignette/methodUnderstanding.pdf)
 for further details on the methodology.
 
-| Function name                  | Function description                                                                                          |
-|--------------------------------|---------------------------------------------------------------------------------------------------------------|
-| `buildAuxiliaryFilterUpdate()` | Create an updated auxiliary particle filter algorithm to estimate log-likelihood.                             |
-| `buildBootstrapFilterUpdate()` | Create an updated bootstrap particle filter algorithm to estimate log-likelihood.                             |
-| `sampler_RW_PF_blockUpdate()`  | The particle filter block sampler to perform particle MCMC.                                                   |
-| `datasetOut()`                 | Perform dataset-out cross-validation, which calculates the impact individual datasets have on the full model. |
+| Function name                  | Function description                                                                                 |
+|--------------------------------|------------------------------------------------------------------------------------------------------|
+| `buildAuxiliaryFilterUpdate()` | Create an updated auxiliary particle filter algorithm to estimate log-likelihood.                    |
+| `buildBootstrapFilterUpdate()` | Create an updated bootstrap particle filter algorithm to estimate log-likelihood.                    |
+| `sampler_RW_PF_blockUpdate()`  | The particle filter block sampler to perform particle MCMC.                                          |
+| `spartaNimWeights()`           | Fit reduced model using MCMC.                                                                        |
+| `spartaNimUpdates()`           | Fit updated model using the smc algorithm in [main paper](https://peprah94.github.io/#Publications). |
+| `updateUtils()`                | Create a modelValues object for the MCMC samples from the reduced model.                             |
 
 ## Updating models with the R-package
+
+``` r
+library(dplyr)
+library(nimMCMCSMCupdates)
+```
 
 ## Other Materials
 
