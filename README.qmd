@@ -8,7 +8,7 @@ bibliography: vignette/references.bib
 
 # Introduction
 
-This package comes with a sequential Monte Carlo algorithm for data assimilation problems in ecology. This package is editted from the *nimbleSMC* package @michaud2021sequential, so the users of this package need to be familiar with the NIMBLE software through its R-package *nimble* [@nimblepackage] and then its R-package for sequential Monte Carlo problems *nimbleSMC* (the reader is referred to Chapter 8 of @nimblepackage and @michaud2021sequential for details on how to fit SSMs using SMC approach in NIMBLE). 
+This package comes with a sequential Monte Carlo algorithm for data assimilation problems in ecology. This package is edited from the *nimbleSMC* package @michaud2021sequential, so the users of this package need to be familiar with the NIMBLE software through its R-package *nimble* [@nimblepackage] and then its R-package for sequential Monte Carlo problems *nimbleSMC* (the reader is referred to Chapter 8 of @nimblepackage and @michaud2021sequential for details on how to fit SSMs using SMC approach in NIMBLE). 
 
 ## Installation
 
@@ -34,24 +34,19 @@ devtools::install_github("Peprah94/nimMCMCSMCupdates")
 | `spartaNimUpdates()` | Fit updated model using the smc algorithm in [main paper](https://peprah94.github.io/#Publications). |
 | `updateUtils()` | Create a modelValues object for the MCMC samples from the reduced model. |
 
-                        
-
-
-
-
-
 ## Updating models with the R-package
 
 ```{r, include=FALSE}
-knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+knitr::opts_chunk$set(warning = FALSE) 
 ```
 
+We load the package needed to run the script. This package loads *nimble* and *nimbleSMC* as dependencies.
 ```{r}
-library(dplyr)
 library(nimMCMCSMCupdates)
 ```
 
-```{r, include=FALSE}
+We simulate a dynamic occupancy model, described in simulation study two in the [main article](https://peprah94.github.io/#Publications), with further detains in @kery2020applied. 
+```{r, include=TRUE}
 # set the configurations for fitting the model
 nyears = 30
 nsites = 300
@@ -59,8 +54,8 @@ nvisits = 3
 iNodePrevAll = c(29, 25) # the time steps used to fit the reduced models
 
 # Set the configurations for MCMC
-nIterations = 50000
-nBurnin = 20000
+nIterations = 5000
+nBurnin = 2000
 nChains = 2
 nThin = 15
 numParticles = 10
@@ -175,15 +170,14 @@ simData <- dynOccupancyModels(nyears = 20,
  save(simData, file = "data/simDataDynamicOccupancy.RData")
 ```
 
-we load the simulated occupancy data in the package for this example.
+The simulated occupancy data can be loaded from the R-package for this example. 
 ```{r}
-data("simDataDynamicOccupancy")
+#data("simDataDynamicOccupancy")
 str(simData)
 ```
 
-The nimble code
+Next, we define the nimble model for the dynamic occupancy model.
 ```{r}
-iNodePrev <- 18
   dynOccupancyCode <- nimbleCode({
 
     # Prior distributions of hyperparameters
@@ -254,11 +248,11 @@ iNodePrev <- 18
     }
 
   })
-
-
 ```
 
-We assume reduced model has already been fittef with MCMC, and we aim to use that result. In the case of this simulation, we can fit the reduced model with the `spartaNimWeights` function.
+We assume reduced model has already been fittef with MCMC, and we aim to use that result. We show how to use results from JAGS [@depaoli2016just] as the reduced model in the this algorithm [here](https://github.com/Peprah94/nimMCMCSMCupdates/blob/main/vignette/fittingMethodUsingJAGSsample.pdf). Although we have not tried it here, we think the same can be applied to results from STAN [@carpenter2017stan].
+
+With this example, we fit the reduced model with the `spartaNimWeights` function.
 ```{r}
 
 # set the configurations for fitting the model
@@ -348,6 +342,7 @@ numParticles = 10
 
 ```
 
+Note that the `spartaNimWeights` function can also be used to fit the full model by settung $t = nyears$. or $iNodePrev = nyears$.
 
 ```{r, echo=FALSE}
    #save results
@@ -355,19 +350,8 @@ numParticles = 10
 ```
 
 
-update the model
+Now that we have results from the reduced model, we can then proceed to fit the updated model using importance sampling.
 ```{r}
-# set the configurations for fitting the model
-nyears = 20
-nsites = 30
-nvisits = 3
-iNodePrev <- 18 # the time steps used to fit the reduced models
-
-# Set the configurations for MCMC
-nIterations = 5000
-nBurnin = 2000
-nChains = 2
-nThin = 5
 numParticles = 10
 ## define data, constants, and initial values
   z <- apply(simData$y, c(1, 3), function(x){
@@ -389,23 +373,6 @@ numParticles = 10
     nvisits = nvisits
   )
 
-
-  inits <- list(
-    alphaPSig = 1,
-    betaPSig  = 1,
-    alphaPsiSig = 1,
-    betaPsiSig  = 1,
-    alphaGammaSig = 1,
-    betaGammaSig = 1,
-    alphaPhi  = 0,
-    betaPhi  = 0,
-    alphaP =  rnorm(1, mean = 0, sd = 1),
-    betaP =  rnorm(1, mean = 0, sd = 1),
-    alphaPsi=  rnorm(1, mean = 0, sd = 1),
-    betaPsi= rnorm(1, mean = 0, sd = 1),
-    colonisationProb = 0.01
-  )
-
   # NIMBLE model for updated model
   newModelUpdated <- nimbleModel(dynOccupancyCode,
                                  data = data,
@@ -418,7 +385,7 @@ numParticles = 10
                                                reducedModel = newModelReduced,
                                                latent = "z",
                                                nParFiltRun = numParticles,
-                                               pfType = "bootstrap",
+                                               pfType = "bootstrap", #change to auxiliary for auxiliary PF
                                                propCov = c(1,1,1,1,1,1,0.01)*diag(7),
                                                mcmcScale = 1,
                                                extraVars = NULL,
@@ -439,7 +406,6 @@ numParticles = 10
                                                                 timeIndex = 2,
                                                                 smoothing = TRUE,
                                                                 mcmc = TRUE,
-                                                                M = nyears - iNodePrev,
                                                                 iNodePrev = iNodePrev),
                                                nCores = 1
   )
@@ -451,14 +417,27 @@ save(updatedModelResults, file= "data/updatedModelResults.RData")
 ```
 
 
-We now compare the computational time
+The samples from the algorithm are of class `mcmc.list`. Therefore, packages like *ggmcmc* [@ggmcmc] and *coda* [@coda] can be used to do the posterior analysis. 
 
 ```{r}
-mcmcResults
+#data("reducedModelResults")
+#data("updatedModelResults")
+class(mcmcResults$samples)
+class(updatedModelResults$samples)
 ```
 
+The results also contain the summary of the parameters monitored. Here, we present the summary of the updated model.
+```{r}
+head(updatedModelResults$summary$all.chains)
+```
 
-## Other Materials
+The function `spartaNimUpdates` has been been set up to run in parallel between chains. The output contains the time taken for each chain to run.
+
+```{r}
+#Time taken
+updatedModelResults$timeRun
+```
+
 
 # References {.unnumbered}
 
