@@ -1,5 +1,5 @@
 # nimMCMCSMCupdates
-[![DOI](https://zenodo.org/badge/616969908.svg)](https://zenodo.org/doi/10.5281/zenodo.10495691)
+
 
 ## Introduction
 
@@ -17,10 +17,6 @@ fit SSMs using SMC approach in NIMBLE).
 You can install the development version of *nimMCMCSMCupdates* from
 [GitHub](https://github.com/) with:
 
-``` r
-install.packages("devtools")
-devtools::install_github("Peprah94/nimMCMCSMCupdates")
-```
 
 ## Functions in the R-package
 
