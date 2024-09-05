@@ -171,11 +171,11 @@ baselineSpartaEstimation <- function(model, #nimbleModel
 
 #' Fit a full or reduced state-space model using either MCMC or SMC methods
 #'
-#' @description Fit a given NIMBLE state space model.
+#' @description Fit a given NIMBLE state space model using either with particle MCMC using nimbleSMC or mcmc using NIMBLE.
 #'
 #' @param model A NIMBLE model object, typically representing a state space model or a hidden Markov model.
 #' @param MCMCconfiguration  A list specifying the parameterisation for nimble's runMCMC function.
-#' @param pfType  The type of particle filter algorithm to fit. Defualts to 'bootstrap'.
+#' @param pfType  The type of particle filter algorithm to fit. Defaults to 'bootstrap'.
 #' @param pfControl  A list specifying different control options for the particle filter. Options are described in the details section below.
 #' @param nParFiltRun  Number of particles for the particle filtering algorithm.
 #' @param latent  A character specifying which variable in the state-space model is the latent variable.
@@ -235,7 +235,6 @@ spartaNimWeights <- function(model, #nimbleModel
                              MCMCconfiguration = NULL, #configuration for MCMC
                              pfType = "bootstrap",#Either 'auxiliary' or 'bootstrap'. Defaults to bootstrap
                              pfControl = list(saveAll = TRUE,
-                                              #lookahead = "mean",
                                               smoothing = FALSE), #list of controls for particle filter
                              nParFiltRun = NULL, #Number of PF runs
                              latent, #the latent variable
@@ -259,7 +258,9 @@ spartaNimWeights <- function(model, #nimbleModel
     nMCompile <- compileNimble(model)
 
     # configure MCMC
-    cMCMC <- configureMCMC(model, monitors = c(target, latent, additionalPars), useConjugacy = FALSE)
+    cMCMC <- configureMCMC(model,
+                           monitors = c(target, latent, additionalPars))#,
+                           #useConjugacy = TRUE)
 
     # If we want to assign a block sampler to the target variables
     if(block == TRUE){
@@ -270,8 +271,8 @@ spartaNimWeights <- function(model, #nimbleModel
     }
 
     # build, compile and run MCMC
-    bMCMC <- buildMCMC(cMCMC,
-                       useConjugacy = FALSE)
+    bMCMC <- buildMCMC(cMCMC)#,
+                       #useConjugacy = FALSE)
 
     coMCMC <- compileNimble(bMCMC,
                             project = nMCompile)
@@ -349,7 +350,6 @@ spartaNimWeights <- function(model, #nimbleModel
                                           pfType = pfType))
 
   modelMCMCconf$addMonitors(additionalPars)
-  #modelMCMCconf$addSampler(target = "alphaPhi", type = "RW")
 
   message("Building and compiling the PF MCMC")
   ## build and compile pMCMC sampler
@@ -422,7 +422,7 @@ timetaken2 <- timeEnd - timeStart2
 # This function creates a modelValue object for the MCMC samples.
 # This is needed to fit the updated models
 
-#' Create a modelValue object for the MCMC object
+#' Create a modelValue object for the MCMC samples
 #'
 #' @description Create a modelValue object for MCMC object.
 #'
@@ -582,13 +582,14 @@ returnlist = list(
 # get nodes
   latentNodes <- model$expandNodeNames(latent)
   nodes <- findLatentNodes(model, latent, timeIndex)
+
 # Get latent nodes and extra nodes
   lastNodes <- findLatentNodes(reducedModel, latent, timeIndex )
   lastNode <- lastNodes[length(lastNodes)]
   extraNodes <- nodes[!nodes %in% lastNodes]
   extraNodes <- model$expandNodeNames(extraNodes)
 
-  # Get the dimensions
+  # Get the dimensions of latent nodes
 dims <- lapply(nodes[1:2], function(n) nimDim(model[[n]]))
 
 # target variables
@@ -773,6 +774,8 @@ spartaNimUpdates <- function(model, #nimbleModel
                              mcmcScale = 1,
                              propCov = 'identity',
                              propCov1 = 'identity',
+                             adaptiveSampler = FALSE,
+                             samplerType = "type2",
                              nCores = NULL
 ){
 
@@ -785,12 +788,13 @@ spartaNimUpdates <- function(model, #nimbleModel
   n.thin = MCMCconfiguration[["n.thin"]]
   iNodePrev = pfControl[["iNodePrev"]]
   M = pfControl[["M"]]
-  timeIndex <- pfControl[["timeIndex"]]
+   timeIndex <- pfControl[["timeIndex"]]
 
   # set default values for the number of particles and timeIndex
   if(is.null(nParFiltRun)) nParFiltRun = 5000
   if(is.null(timeIndex)) timeIndex = 1
   if(is.null(nCores)) nCores = n.chains
+   if(is.null(samplerType)) samplerType <- "type1"
 
   #samplesList  <- vector('list', n.chains)
 
@@ -817,6 +821,8 @@ spartaNimUpdates <- function(model, #nimbleModel
                                   mcmcScale,
                                   propCov,
                                   propCov1,
+                                  adaptiveSampler,
+                                  samplerType,
                                   nCores){
 
     target = MCMCconfiguration[["target"]]
@@ -833,6 +839,8 @@ spartaNimUpdates <- function(model, #nimbleModel
     if(is.null(nParFiltRun)) nParFiltRun = 5000
     if(is.null(timeIndex)) timeIndex = 1
     if(is.null(nCores)) nCores = n.chains
+    if(is.null(propCov)) propCov = "identity"
+    if(is.null(propCov1)) propCov1 = "identity"
 
     if(nCores > 1) {
       dirName <- file.path(tempdir(), 'nimble_generatedCode', paste0("worker_", i))
@@ -910,10 +918,10 @@ print(dirName)
 
       #checking if the updated pF works very well
       #targetAsScalar <- estimationModel$expandNodeNames(target, returnScalarComponents = TRUE)
-      # compiledParticleFilter <- compileNimble(estimationModel,  particleFilterEst)
+       #compiledParticleFilter <- compileNimble(estimationModel,  particleFilterEst)
 #
-      # compiledParticleFilter$particleFilterEst$run(m = 100, iterRun = 100, storeModelValues = values(estimationModel, targetAsScalar))
- #compiledParticleFilter$particleFilterEst$mvWSamples[["z"]][[100]][1:10, 51]
+      #compiledParticleFilter$particleFilterEst$run(m = 10, iterRun = 3, storeModelValues = values(estimationModel, targetAsScalar))
+ #compiledParticleFilter$particleFilterEst$mvWSamples[["x"]][[100]][1:10, 51]
 
 
       message("Setting up the MCMC Configuration")
@@ -921,7 +929,9 @@ print(dirName)
       modelMCMCconf <- nimble::configureMCMC(model,
                                              monitors = c(target, latent, additionalPars),
                                              nodes = NULL)#, monitors = c(target, latent, additionalPars))
+    if(samplerType == "type2"){
 
+      model <-  modelMCMCconf$model
       # set sampler to use
       if(pfType == "bootstrap"){
         pfTypeUpdate = 'bootstrapUpdate'
@@ -930,13 +940,205 @@ print(dirName)
           pfTypeUpdate = 'auxiliaryUpdate'
         }
       }
+      targetSamplesRun <- lapply(model$getVarNames(nodes = target), function(x){
+        ret <- model$getDependencies(x, stochOnly = TRUE,  downstream = TRUE, self = FALSE)
+        nodesToReturn <- model$getVarNames(nodes = ret)
+        return(nodesToReturn)
+      })
 
+
+      #################################
+      # Last run: Those that depend on the observation
+      #######################################
+
+      lastRun <- sapply(targetSamplesRun, function(x){
+        ret <- all(model$isData(x))
+        return(ret)
+        #any(x %in% c(model$expandNodeNames(nodes = latents), model$getVarNames(nodes = target) ))
+      })
+
+      lastRunPars <- model$expandNodeNames(model$getVarNames(nodes = target)[lastRun])
+      print(lastRunPars)
+      #####################################
+      # Third run: Hyperparameters of the last run parameters
+      # I will call it third run
+      #####################################
+      thirdRun <- sapply(targetSamplesRun, function(x){
+        any(x %in% model$getVarNames(nodes = lastRunPars))
+      })
+      thirdRunPars <-model$expandNodeNames(model$getVarNames(nodes = target)[thirdRun])
+      print(thirdRunPars)
+
+      ############################################
+      # Second run: The parameters that directly affect the latent state
+      ####################################
+      suppressWarnings(secondRun <- sapply(targetSamplesRun, function(x){
+        ret <- x == c(model$getVarNames(nodes = latent), model$getVarNames(nodes = model$getDependencies(lastRunPars, self = FALSE, stochOnly = TRUE)))
+        ret <- all(ret == TRUE)
+        return(ret)
+      }))
+      secondRunPars <- model$expandNodeNames(model$getVarNames(nodes = target)[secondRun])
+      print(secondRunPars)
+
+      ############################################
+      # First run: The parameters that affect second run
+      ####################################
+      firstRun <- sapply(targetSamplesRun, function(x){
+        any(x %in% model$getVarNames(nodes = secondRunPars))
+      })
+      firstRunPars <- model$expandNodeNames(model$getVarNames(nodes = target)[firstRun])
+      print(firstRunPars)
+
+
+      #####################################
+      # Set the conditions fot the MCMC run
+      #####################################
+      simLastPars <- TRUE
+      simThirdPars <- TRUE
+
+      if(length(lastRunPars) == 0) simLastPars <- FALSE
+      if(length(thirdRunPars) == 0) simThirdPars <- FALSE
+
+
+      if(length(firstRunPars) == 0){
+        simFirstPars <- FALSE
+      } else{
+        simFirstPars <- TRUE
+        topParams <- firstRunPars
+
+      }
+      if(length(secondRunPars) == 0){
+        simSecondPars <- FALSE
+      }else{
+        simSecondPars <- TRUE
+        #if(length(firstRunPars)==0){
+         # topParamsInter <- firstRunPars
+       # }else{
+          topParamsInter <- secondRunPars
+        #}
+      }
+
+      print(c(simFirstPars, simSecondPars,
+              simThirdPars, simLastPars))
+
+      #set extraVars
+      targetAsScalar <- model$expandNodeNames(target, returnScalarComponents = TRUE)
+      extraVars <- targetAsScalar[!targetAsScalar %in% topParamsInter]
+
+      if(simThirdPars){
+        isDiscrete <- any(model$isDiscrete(thirdRunPars) == TRUE)
+        if(isDiscrete){
+          if(length(thirdRunPars) > 1){
+            modelMCMCconf$addSampler(target = thirdRunPars,
+                                     "AF_slice")
+          } else {
+            modelMCMCconf$addSampler(target = thirdRunPars,
+                                     "slice")
+          }
+        } else {
+          if(length(thirdRunPars) > 1){
+            modelMCMCconf$addSampler(target = thirdRunPars,
+                                     "RW_block")
+          } else {
+            modelMCMCconf$addSampler(target = thirdRunPars,
+                                     "RW")
+          }
+        }
+      }
+
+      if(simLastPars){
+        isDiscrete <- any(model$isDiscrete(lastRunPars) == TRUE)
+        if(isDiscrete){
+          if(length(lastRunPars) > 1){
+            modelMCMCconf$addSampler(target = lastRunPars,
+                                     "AF_slice")
+          } else {
+            modelMCMCconf$addSampler(target = lastRunPars,
+                                     "slice")
+          }
+        } else {
+          if(length(lastRunPars) > 1){
+            modelMCMCconf$addSampler(target = lastRunPars,
+                                     "RW_block",
+                                     control = list(scale = mcmcScale,
+                                                    adaptive = adaptiveSampler))
+          } else {
+            modelMCMCconf$addSampler(target = lastRunPars,
+                                     "RW",
+                                     control = list(scale = mcmcScale))
+          }
+        }
+      }
+
+
+      modelMCMCconf$addMonitors(additionalPars)
+
+      # if dimfirstPars
+      if(simFirstPars){
+        modelMCMCconf$addSampler(target = topParams,
+                                 type = 'RW_PF_blockUpdateV2',
+                                 control = list(latents = latent,
+                                                #target = target,
+                                                adaptive = adaptiveSampler,
+                                                propCov = propCov,
+                                                propCov1 = propCov1,
+                                                #adaptInterval = 100,
+                                                scale = mcmcScale,
+                                                # pf = particleFilter,
+                                                pfControl = pfControl, #list( M = M, iNodePrev = iNodePrev),
+                                                pfNparticles = nParFiltRun,
+                                                pfType = pfTypeUpdate,
+                                                postSamples = postReducedMCMC$samples[[i]],
+                                                mvSamplesEst = mvSamplesEst,
+                                                extraVars = extraVars,
+                                                iNodePrev = iNodePrev,
+                                                additionalPars = additionalPars,
+                                                reducedModel = reducedModel)
+        )
+      }#else{
+
+      #set up MCMC configuration
+      modelMCMCconf$addSampler(target = topParamsInter,
+                               type = 'RW_PF_blockUpdateV2',
+                               control = list(latents = latent,
+                                              #target = target,
+                                              adaptive = adaptiveSampler,
+                                              propCov = propCov,
+                                              propCov1 = propCov1,
+                                              #adaptInterval = 100,
+                                              scale = mcmcScale,
+                                              # pf = particleFilter,
+                                              pfControl = pfControl, #list( M = M, iNodePrev = iNodePrev),
+                                              pfNparticles = nParFiltRun,
+                                              pfType = pfTypeUpdate,
+                                              postSamples = postReducedMCMC$samples[[i]],
+                                              mvSamplesEst = mvSamplesEst,
+                                              extraVars = extraVars,
+                                              iNodePrev = iNodePrev,
+                                              additionalPars = additionalPars,
+                                              reducedModel = reducedModel)
+      )
+#}
+
+
+
+      modelMCMCconf$printSamplers(executionOrder = TRUE)
+
+    } else if(samplerType == "type1") {
+      # set sampler to use
+      if(pfType == "bootstrap"){
+        pfTypeUpdate = 'bootstrapUpdate'
+      }else{
+        if(pfType == "auxiliary") {
+          pfTypeUpdate = 'auxiliaryUpdate'
+        }
+      }
       #set up MCMC configuration
       modelMCMCconf$addSampler(target = target,
                                type = 'RW_PF_blockUpdate',
                                control = list(latents = latent,
                                               #target = target,
-                                              adaptive = FALSE,
+                                              adaptive = TRUE,
                                               propCov = propCov,
                                               propCov1 = propCov1,
                                               #adaptInterval = 100,
@@ -953,7 +1155,7 @@ print(dirName)
                                               reducedModel = reducedModel)
       )
 
-      modelMCMCconf$addMonitors(additionalPars)
+}
 
       message("Building and compiling the PF MCMC")
       ## build and compile pMCMC sampler
@@ -968,17 +1170,39 @@ print(dirName)
       timeStart2 <- Sys.time()
       message("Running the PF MCMC")
       #run MCMC
-      mcmc.out <- nimble::runMCMC(compiledList$modelMCMC,
-                                  niter = n.iter,
-                                  nchains = 1,
-                                  nburnin = n.burnin,
-                                  #inits = initsList,
-                                  thin = n.thin,
-                                  setSeed = TRUE,
-                                  samples= 123,
-                                  samplesAsCodaMCMC = TRUE,
-                                  summary = TRUE,
-                                  WAIC = FALSE)
+     #  compiledList$modelMCMC$run(niter = n.iter,
+     #                             #nburnin = n.burnin,
+     #                             time = TRUE)
+     #
+     # system.time(mcmc.out <- nimble::runMCMC(compiledList$modelMCMC,
+     #                              niter = n.iter,
+     #                              nchains = 1,
+     #                              nburnin = n.burnin,
+     #                              #inits = initsList,
+     #                              thin = n.thin,
+     #                              setSeed = TRUE,
+     #                              samples= 123,
+     #                              samplesAsCodaMCMC = TRUE,
+     #                              summary = TRUE,
+     #                              WAIC = FALSE
+     #                              )
+     # )
+
+     postburninTimeResult <- system.time({
+       mcmc.out <- nimble::runMCMC(compiledList$modelMCMC,
+                                   niter = n.iter,
+                                   nchains = 1,
+                                   nburnin = n.burnin,
+                                   #inits = initsList,
+                                   thin = n.thin,
+                                   setSeed = TRUE,
+                                   samples= 123,
+                                   samplesAsCodaMCMC = TRUE,
+                                   summary = TRUE,
+                                   WAIC = FALSE
+       )
+     })
+     postburninTime <- postburninTimeResult[3]
       timeEnd <- Sys.time()
 
       timetaken1 <- timeEnd - timeStart1
@@ -987,10 +1211,12 @@ print(dirName)
       #compiledList$modelMCMC$samplerFunctions[[1]]$getScaleHistory()
       #compiledList$modelMCMC$samplerFunctions[[1]]$getAcceptanceHistory()
       #compiledList$modelMCMC$samplerFunctions[[1]]$getPropCovHistory()
-
+#compiledList$modelMCMC$mvSamples
+#compiledList$modelMCMC$mvSaved
       retList <- list()
       retList$timeRun <- timetaken2
       retList$samples <- mcmc.out$samples
+      retList$elapsedTime <- postburninTime
       return(retList)
     }
 
@@ -1014,6 +1240,8 @@ print(dirName)
                                       mcmcScale,
                                       propCov,
                                       propCov1,
+                                      adaptiveSampler,
+                                      samplerType,
                                       nCores = n.chains,
                                       mc.cores = nCores)
   } else{
@@ -1035,6 +1263,8 @@ print(dirName)
                           mcmcScale,
                           propCov,
                           propCov1,
+                          adaptiveSampler,
+                          samplerType,
                           nCores = 1)
   }
 

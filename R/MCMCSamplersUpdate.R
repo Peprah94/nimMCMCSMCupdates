@@ -41,8 +41,8 @@
 #######################################################################################
 #' @rdname samplers
 #' @export
-sampler_RW_PF_blockUpdate <- nimbleFunction(
-  name = 'sampler_RW_PF_blockUpdate',
+sampler_RW_PF_blockUpdate11 <- nimbleFunction(
+  name = 'sampler_RW_PF_blockUpdate11',
   contains = sampler_BASE,
   setup = function(model, mvSaved, target, control) {
     ## control list extraction
@@ -104,6 +104,35 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     # Get top parameters
     topParams <- model$getNodeNames(stochOnly=TRUE, includeData=FALSE, topOnly=TRUE)
 
+   targetSamplesRun <- lapply(model$getVarNames(nodes = target), function(x){
+    model$getDependencies(x, stochOnly = TRUE, downstream = FALSE, self = FALSE)
+    })
+
+   # first Run
+   firstRun <- sapply(targetSamplesRun, function(x){
+     any(x %in% model$getVarNames(nodes = target))
+   })
+   firstRunPars <- model$getVarNames(nodes = target)[firstRun]
+
+
+   secondRun <- sapply(targetSamplesRun, function(x){
+     any(x %in% model$expandNodeNames(nodes = latent))
+   })
+   secondRunPars <- model$getVarNames(nodes = target)[secondRun]
+
+   thirdRun <- sapply(targetSamplesRun, function(x){
+     any(!x %in% c(model$expandNodeNames(nodes = latent), model$getVarNames(nodes = target) ))
+   })
+   thirdRunPars <- model$getVarNames(nodes = target)[thirdRun]
+
+# Continue from here
+simFirstPars <- TRUE
+simSecondPars <- TRUE
+simThirdPars <- TRUE
+if(is.null(firstRunPars)) simFirstPars <- FALSE
+if(is.null(secondRunPars)) simSecondPars <- FALSE
+if(is.null(thirdRunPars)) simThirdPars <- FALSE
+
 
     if(length(topParams) <5){
   topParams <- topParams
@@ -148,6 +177,7 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
 
      # Get dependencies of top Parameters that does not include itself and data components
     calcNodesTopParams <- model$getDependencies(topParams)
+
     #Get the data Node that includes the vars and the data itself
     dataNodes <- model$getVarNames(nodes = model$getDependencies(latents, downstream = TRUE, stochOnly = TRUE, self = FALSE))
 

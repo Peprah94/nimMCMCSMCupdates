@@ -155,7 +155,7 @@ auxFStepUpdate <- nimbleFunction(
     ############
     if(t > iNodePrev){
       # change the values of the model parameters to the proposed values
-   values(model, targetNodesAsScalar) <<- storeModelValues
+  # values(model, targetNodesAsScalar) <<- storeModelValues
 
      ## This is the look-ahead step, not conducted for first time-point.
    if(notFirst){
@@ -275,7 +275,7 @@ auxFStepUpdate <- nimbleFunction(
 #    Copying information from reduced model
 #######################
 
-       nimCopy(from = mvSamplesEst, to = model, nodes = target, row = iterRun, rowTo = 1)
+      # nimCopy(from = mvSamplesEst, to = model, nodes = target, row = iterRun, rowTo = 1)
         # if(notFirst){
         #   for(i in 1:m) {
         #    if(smoothing == 1){

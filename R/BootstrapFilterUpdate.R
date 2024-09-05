@@ -113,10 +113,9 @@ bootFStepUpdate <- nimbleFunction(
     ################
     # Updating the new time steps: t+1, t+2, ..., T
     ############
-
+    values(model, targetNodesAsScalar) <<- storeModelValues
     if(t > iNodePrev){
 
-      values(model, targetNodesAsScalar) <<- storeModelValues
     for(i in 1:m) {
       if(notFirst) {
         if(smoothing == 1){
@@ -223,7 +222,7 @@ model$simulate(calc_thisNode_self)
       #######################
 
       # Copy the target values into the model too
-      nimCopy(from = mvSamplesEst, to = model, nodes = target, row = iterRun, rowTo = 1)
+      #nimCopy(from = mvSamplesEst, to = model, nodes = target, row = iterRun, rowTo = 1)
 
       #update the deterministic vars
       # if(notFirst) {

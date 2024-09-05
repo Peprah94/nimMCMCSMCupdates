@@ -10,6 +10,7 @@ particleFilter_splitModelSteps <- function(model,
   prevNode <- nodes[if(notFirst) iNode-1 else iNode]
   thisNode <- nodes[iNode]
   thisNodeExpanded <- model$expandNodeNames(thisNode, sort = TRUE)
+
   ## Set up steps for calculations internal to thisNode and for downstream simulation from thisNode
   thisDeterm <- model$getDependencies(thisNode, determOnly = TRUE)
   if(length(thisDeterm) > 0) {
@@ -168,6 +169,54 @@ findLatentNodes <- function(model, nodes, timeIndex = NULL) {
 
 mySetAndCalculateUpdate <- nimbleFunction(
   name = 'mySetAndCalculateUpdate',
+  setup = function(model, target, latents, mvSamplesEst, my_particleFilter, m, topParamsInter, mvSaved) {# postSamples) {
+    targetNodesAsScalar <- model$expandNodeNames(target, returnScalarComponents = TRUE)
+    calcNodes <- model$getDependencies(target)
+    latentDep <- model$getDependencies(latents)
+    particleMVold <- my_particleFilter$mvEWSamples
+    #extras <- any(model$expandNodeNames(extraTargetVars) %in% model$expandNodeNames(latents))
+    # print(topParamsInter)
+    # print(targetNodesAsScalar)
+    # print(target)
+  },
+  run = function(iterRan = integer()) {
+    index <- ceiling(runif(1, 0, m))
+    #nimCopy(from = mvSaved, to = model, nodes = topParamsInter, nodesTo = topParamsInter, row = 1)
+    #nimCopy(from = mvSaved, to = model, nodes = extraTargetVars, row = 1)
+    #print(values(model, topParamsInter))
+    #for now, I am simulating the extraPars values, the idea is to use the previous values
+    #model$calculate()
+    #if(extras) nimCopy(from = mvSaved, to = model, nodes = extraTargetVars, nodesTo = extraTargetVars, row = 1)#model$simulate(extraTargetVars)
+    #if(extras) nimCopy(from = mvSamplesEst, to = model, nodes = latents, row = iterRan, rowTo = 1)
+    #model$calculate()
+    #print(values(model, targetNodesAsScalar))
+
+    #nimCopy(from = mvSamplesEst, to = model, nodes = calNodesStoch,row = iterRan)
+    #model$simulate(calNodesStoch)
+    # model$calculate()
+    lp <-  my_particleFilter$run(m = m, iterRun = iterRan, storeModelValues = values(model, targetNodesAsScalar))
+    #print(lp)
+    nimCopy(from =  particleMVold, to = model, latents, latents, row = index, rowTo = 1)
+    #print(values(model, targetNodesAsScalar))
+    # #calculate(model, latentDep)
+    # model$calculate()
+    # copy(from = model, to = mvSaved, nodes = latentDep, row = 1, logProb = TRUE)
+    # copy(from)
+    #simulate(model)
+    #calculate(model, latentDep)
+    #nimCopy(from = model, to = mvSaved, nodes = latentDep, row = 1)
+    #calculate(model, c(latentDep, targetNodes))
+    #copy(model, mvSaved)
+    #nimCopy(particleMVold, mvSaved, latents, latents, row = index)
+    #values(model, targetNodesAsScalar) <<- postSamples[iterRan, targetNodesAsScalar]
+    #lp <- model$calculate(calcNodes)
+    returnType(double())
+    return(lp)
+  }
+)
+
+mySetAndCalculateUpdate11 <- nimbleFunction(
+  name = 'mySetAndCalculateUpdate11',
   setup = function(model, target, latents, mvSamplesEst, my_particleFilter, m, topParamsInter, mvSaved, extraTargetVars, extras) {# postSamples) {
     targetNodesAsScalar <- model$expandNodeNames(target, returnScalarComponents = TRUE)
     calcNodes <- model$getDependencies(target)
@@ -434,3 +483,176 @@ sampleTopPars <- nimbleFunction(
 #     return(lp)
 #   }
 # )
+
+#' @rdname samplers
+#' @export
+mySampler_RW_block <- nimbleFunction(
+  name = 'mySsampler_RW_block',
+  contains = sampler_BASE,
+  setup = function(model, mvSaved, target, control) {
+    ## control list extraction
+    adaptive            <- extractControlElement(control, 'adaptive',            TRUE)
+    adaptScaleOnly      <- extractControlElement(control, 'adaptScaleOnly',      FALSE)
+    adaptInterval       <- extractControlElement(control, 'adaptInterval',       200)
+    adaptFactorExponent <- extractControlElement(control, 'adaptFactorExponent', 0.8)
+    scale               <- extractControlElement(control, 'scale',               1)
+    propCov             <- extractControlElement(control, 'propCov',             'identity')
+    tries               <- extractControlElement(control, 'tries',               1)
+    maxDimCovHistory    <- extractControlElement(control, 'maxDimCovHistory',    10)
+    ## node list generation
+    targetAsScalar <- model$expandNodeNames(target, returnScalarComponents = TRUE)
+    ccList <- myMcmc_determineCalcAndCopyNodes(model, target)
+    calcNodes <- ccList$calcNodes; copyNodesDeterm <- ccList$copyNodesDeterm; copyNodesStoch <- ccList$copyNodesStoch   # not used: calcNodesNoSelf
+    finalTargetIndex <- max(match(model$expandNodeNames(target), calcNodes))
+    if(!is.integer(finalTargetIndex) | length(finalTargetIndex) != 1 | is.na(finalTargetIndex[1]))   stop('problem with target node in RW_block sampler')
+    calcNodesProposalStage <- calcNodes[1:finalTargetIndex]
+    calcNodesDepStage <- calcNodes[-(1:finalTargetIndex)]
+    ## numeric value generation
+    scaleOriginal <- scale
+    timesRan      <- 0
+    timesAccepted <- 0
+    timesAdapted  <- 0
+    d <- length(targetAsScalar)
+    scaleHistory <- c(0, 0)                                                                  ## scaleHistory
+    acceptanceHistory <- c(0, 0)                                                             ## scaleHistory
+    propCovHistory <- if(d <= maxDimCovHistory) array(0, c(2,d,d)) else array(0, c(2,2,2))   ## scaleHistory
+    saveMCMChistory <- if(getNimbleOption('MCMCsaveHistory')) TRUE else FALSE
+    if(is.character(propCov) && propCov == 'identity')     propCov <- diag(d)
+    propCovOriginal <- propCov
+    chol_propCov <- chol(propCov)
+    chol_propCov_scale <- scale * chol_propCov
+    empirSamp <- matrix(0, nrow=adaptInterval, ncol=d)
+    ## nested function and function list definitions
+    targetNodesAsScalar <- model$expandNodeNames(target, returnScalarComponents = TRUE)
+    my_calcAdaptationFactor <- calcAdaptationFactor(d, adaptFactorExponent)
+    ## checks
+    if(any(model$isDiscrete(target)))       warning('cannot use RW_block sampler on discrete-valued target')  # This will become an error once we fix the designation of distributions in nimbleSCR to not be discrete.
+    if(!inherits(propCov, 'matrix'))        stop('propCov must be a matrix\n')
+    if(!inherits(propCov[1,1], 'numeric'))  stop('propCov matrix must be numeric\n')
+    if(!all(dim(propCov) == d))             stop('propCov matrix must have dimension ', d, 'x', d, '\n')
+    if(!isSymmetric(propCov))               stop('propCov matrix must be symmetric')
+  },
+  run = function() {
+    for(i in 1:tries) {
+      propValueVector <- generateProposalVector()
+      values(model, targetNodesAsScalar) <<- propValueVector
+      lpD <- model$calculateDiff(calcNodesProposalStage)
+      if(lpD == -Inf) {
+        jump <- FALSE
+        nimCopy(from = mvSaved, to = model,   row = 1, nodes = calcNodesProposalStage, logProb = TRUE)
+      } else {
+        lpD <- lpD + model$calculateDiff(calcNodesDepStage)
+        jump <- decide(lpD)
+        if(jump) {
+          ##model$calculate(calcNodesPPomitted)
+          nimCopy(from = model, to = mvSaved, row = 1, nodes = calcNodesProposalStage, logProb = TRUE)
+          nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesDeterm, logProb = FALSE)
+          nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesStoch, logProbOnly = TRUE)
+        } else {
+          nimCopy(from = mvSaved, to = model, row = 1, nodes = calcNodesProposalStage, logProb = TRUE)
+          nimCopy(from = mvSaved, to = model, row = 1, nodes = copyNodesDeterm, logProb = FALSE)
+          nimCopy(from = mvSaved, to = model, row = 1, nodes = copyNodesStoch, logProbOnly = TRUE)
+        }
+      }
+      if(adaptive)     adaptiveProcedure(jump)
+    }
+  },
+  methods = list(
+    generateProposalVector = function() {
+      propValueVector <- rmnorm_chol(1, values(model,target), chol_propCov_scale, 0)  ## last argument specifies prec_param = FALSE
+      returnType(double(1))
+      return(propValueVector)
+    },
+    adaptiveProcedure = function(jump = logical()) {
+      timesRan <<- timesRan + 1
+      if(jump)     timesAccepted <<- timesAccepted + 1
+      if(!adaptScaleOnly)     empirSamp[timesRan, 1:d] <<- values(model, target)
+      if(timesRan %% adaptInterval == 0) {
+        acceptanceRate <- timesAccepted / timesRan
+        timesAdapted <<- timesAdapted + 1
+        if(saveMCMChistory) {
+          setSize(scaleHistory, timesAdapted)                 ## scaleHistory
+          scaleHistory[timesAdapted] <<- scale                ## scaleHistory
+          setSize(acceptanceHistory, timesAdapted)            ## scaleHistory
+          acceptanceHistory[timesAdapted] <<- acceptanceRate  ## scaleHistory
+          if(d <= maxDimCovHistory) {
+            propCovTemp <- propCovHistory                                           ## scaleHistory
+            setSize(propCovHistory, timesAdapted, d, d)                             ## scaleHistory
+            if(timesAdapted > 1)                                                    ## scaleHistory
+              for(iTA in 1:(timesAdapted-1))                                      ## scaleHistory
+                propCovHistory[iTA, 1:d, 1:d] <<- propCovTemp[iTA, 1:d, 1:d]    ## scaleHistory
+            propCovHistory[timesAdapted, 1:d, 1:d] <<- propCov[1:d, 1:d]            ## scaleHistory
+          }
+        }
+        adaptFactor <- my_calcAdaptationFactor$run(acceptanceRate)
+        scale <<- scale * adaptFactor
+        ## calculate empirical covariance, and adapt proposal covariance
+        if(!adaptScaleOnly) {
+          gamma1 <- my_calcAdaptationFactor$getGamma1()
+          for(i in 1:d)     empirSamp[, i] <<- empirSamp[, i] - mean(empirSamp[, i])
+          empirCov <- (t(empirSamp) %*% empirSamp) / (timesRan-1)
+          propCov <<- propCov + gamma1 * (empirCov - propCov)
+          chol_propCov <<- chol(propCov)
+        }
+        chol_propCov_scale <<- chol_propCov * scale
+        timesRan <<- 0
+        timesAccepted <<- 0
+      }
+    },
+    setScale = function(newScale = double()) {
+      scale         <<- newScale
+      scaleOriginal <<- newScale
+      chol_propCov_scale <<- chol_propCov * scale
+    },
+    setPropCov = function(newPropCov = double(2)) {
+      propCov         <<- newPropCov
+      propCovOriginal <<- newPropCov
+      chol_propCov <<- chol(propCov)
+      chol_propCov_scale <<- chol_propCov * scale
+    },
+    getScaleHistory = function() {  ## scaleHistory
+      if(!saveMCMChistory)   print("Please set 'nimbleOptions(MCMCsaveHistory = TRUE)' before building the MCMC.")
+      returnType(double(1))
+      return(scaleHistory)
+    },
+    getAcceptanceHistory = function() {  ## scaleHistory
+      returnType(double(1))
+      if(!saveMCMChistory)   print("Please set 'nimbleOptions(MCMCsaveHistory = TRUE)' before building the MCMC.")
+      return(acceptanceHistory)
+    },
+    getPropCovHistory = function() { ## scaleHistory
+      if(!saveMCMChistory | d > maxDimCovHistory)   print("Please set 'nimbleOptions(MCMCsaveHistory = TRUE)' before building the MCMC.  Note that to reduce memory use, proposal covariance histories are only saved for parameter vectors of length <= 10; this value can be modified using the 'maxDimCovHistory' control list element.")
+      returnType(double(3))
+      return(propCovHistory)
+    },
+    ##getScaleHistoryExpanded = function() {                                                              ## scaleHistory
+    ##    scaleHistoryExpanded <- numeric(timesAdapted*adaptInterval, init=FALSE)                         ## scaleHistory
+    ##    for(iTA in 1:timesAdapted)                                                                      ## scaleHistory
+    ##        for(j in 1:adaptInterval)                                                                   ## scaleHistory
+    ##            scaleHistoryExpanded[(iTA-1)*adaptInterval+j] <- scaleHistory[iTA]                      ## scaleHistory
+    ##    returnType(double(1)); return(scaleHistoryExpanded) },                                          ## scaleHistory
+    ##getPropCovHistoryExpanded = function() {                                                            ## scaleHistory
+    ##    propCovHistoryExpanded <- array(dim=c(timesAdapted*adaptInterval,d,d), init=FALSE)              ## scaleHistory
+    ##    for(iTA in 1:timesAdapted)                                                                      ## scaleHistory
+    ##        for(j in 1:adaptInterval)                                                                   ## scaleHistory
+    ##            propCovHistoryExpanded[(iTA-1)*adaptInterval+j,1:d,1:d] <- propCovHistory[iTA,1:d,1:d]  ## scaleHistory
+    ##    returnType(double(3)); return(propCovHistoryExpanded) },                                        ## scaleHistory
+    reset = function() {
+      scale   <<- scaleOriginal
+      propCov <<- propCovOriginal
+      chol_propCov <<- chol(propCov)
+      chol_propCov_scale <<- chol_propCov * scale
+      timesRan      <<- 0
+      timesAccepted <<- 0
+      timesAdapted  <<- 0
+      if(saveMCMChistory) {
+        scaleHistory  <<- c(0, 0)    ## scaleHistory
+        acceptanceHistory  <<- c(0, 0)
+        if(d <= maxDimCovHistory)
+          propCovHistory <<- nimArray(0, dim = c(2,d,d))
+      }
+      my_calcAdaptationFactor$reset()
+    }
+  )
+)
+
