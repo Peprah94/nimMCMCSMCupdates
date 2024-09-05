@@ -775,7 +775,7 @@ spartaNimUpdates <- function(model, #nimbleModel
                              propCov = 'identity',
                              propCov1 = 'identity',
                              adaptiveSampler = FALSE,
-                             samplerType = "type2",
+                             samplerType = "type1",
                              nCores = NULL
 ){
 

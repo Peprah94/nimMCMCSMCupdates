@@ -113,7 +113,7 @@ bootFStepUpdate <- nimbleFunction(
     ################
     # Updating the new time steps: t+1, t+2, ..., T
     ############
-    values(model, targetNodesAsScalar) <<- storeModelValues
+    #values(model, targetNodesAsScalar) <<- storeModelValues
     if(t > iNodePrev){
 
     for(i in 1:m) {

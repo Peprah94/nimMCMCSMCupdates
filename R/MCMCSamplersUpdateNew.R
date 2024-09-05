@@ -46,7 +46,7 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
   contains = sampler_BASE,
   setup = function(model, mvSaved, target, control) {
     ## control list extraction
-    adaptive            <- extractControlElement(control, 'adaptive',             TRUE)
+    adaptive            <- extractControlElement(control, 'adaptive',             FALSE)
     adaptScaleOnly      <- extractControlElement(control, 'adaptScaleOnly',       FALSE)
     adaptInterval       <- extractControlElement(control, 'adaptInterval',        200)
     adaptFactorExponent <- extractControlElement(control, 'adaptFactorExponent',  0.8)
@@ -89,13 +89,6 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     # We always sample the latent states with this application and get their dependencies
     latentSamp <- TRUE
     latentDep <- model$getDependencies(latents)
-    # Get the paramters we are sampling
-    # MCMCmonitors <- tryCatch(parent.frame(2)$conf$monitors, error = function(e) e)
-    # if(identical(MCMCmonitors, TRUE))
-    #   latentSamp <- TRUE
-    # else if(any(model$expandNodeNames(latents) %in% model$expandNodeNames(MCMCmonitors)))
-    #   latentSamp <- TRUE
-
 
     ## Now we try to seperate the hyperparameters from the other model parameters
     ## We do this by looking at the model graph and going one step back at a time.
@@ -111,18 +104,17 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
       return(nodesToReturn)
     })
 
-
     #################################
     # Last run: Those that depend on the observation
     #######################################
     lastRun <- sapply(targetSamplesRun, function(x){
       ret <- all(model$isData(x))
       return(ret)
-      #any(x %in% c(model$expandNodeNames(nodes = latents), model$getVarNames(nodes = target) ))
     })
 
     lastRunPars <- model$expandNodeNames(model$getVarNames(nodes = target)[lastRun])
-print(lastRunPars)
+    print(lastRunPars)
+
     #####################################
     # Third run: Hyperparameters of the last run parameters
     # I will call it third run
@@ -137,7 +129,7 @@ print(lastRunPars)
     # Second run: The parameters that directly affect the latent state
     ####################################
     suppressWarnings(secondRun <- sapply(targetSamplesRun, function(x){
-      ret <- x == c(model$getVarNames(nodes = latent), model$getVarNames(nodes = model$getDependencies(lastRunPars, self = FALSE, stochOnly = TRUE)))
+      ret <- x == c(model$getVarNames(nodes = latents), model$getVarNames(nodes = model$getDependencies(lastRunPars, self = FALSE, stochOnly = TRUE)))
     ret <- all(ret == TRUE)
     return(ret)
       }))
@@ -151,10 +143,10 @@ print(lastRunPars)
       any(x %in% model$getVarNames(nodes = secondRunPars))
     })
     firstRunPars <- model$expandNodeNames(model$getVarNames(nodes = target)[firstRun])
-print(firstRunPars)
+    print(firstRunPars)
 
 #####################################
-# Set the conditions fot the MCMC run
+# Set the conditions for the MCMC run
 #####################################
 simLastPars <- TRUE
 simThirdPars <- TRUE
@@ -227,7 +219,8 @@ print(c(simFirstPars, simSecondPars, simThirdPars, simLastPars))
     mBurnIn  <- 15   ## number of LL variance estimates to compute before deciding optimal m
     if(optimizeM)   m <- 3000
 
-    my_decideAndJump <-  myDecideAndJump(model, mvSaved, topParamsInter,latentAsScalar, mvSamplesEst)
+    #my_decideAndJump <-  myDecideAndJump(model, mvSaved, topParamsInter,latentAsScalar, mvSamplesEst)
+    my_decideAndJump <- decideAndJump(model, mvSaved, topParamsInter)
     my_calcAdaptationFactor <- calcAdaptationFactor(d, adaptFactorExponent)
 
 
@@ -357,7 +350,7 @@ print(c(simFirstPars, simSecondPars, simThirdPars, simLastPars))
     pfModelValues <- rep(0, length(latentDep))
     #targetModelValues <- rep(0, length(topParamsInter))
    # topParamsValues <- rep(0, length(topParams))
-    storeModelVals <- rep(0, length(topParamsInter))
+    storeModelVals <- rep(0, length(targetAsScalar))
 
 
     ccList1 <- myMcmc_determineCalcAndCopyNodes(model, topParamsInter)
@@ -400,40 +393,54 @@ print(c(simFirstPars, simSecondPars, simThirdPars, simLastPars))
     #############################
 
     # Estimate the loglikehood given the saved latent state samples and
-    storeParticleLP <<- my_setAndCalculateUpdate$run(iterRan)
-
+    #storeParticleLP <<- my_setAndCalculateUpdate$run(iterRan)
+    storeParticleLP <<- my_particleFilter$getLastLogLik()
     #store latent values and target model parameters from old values
-    pfModelValues <<- values(model, latentDep)
-    storeModelVals <<- values(model, targetAsScalar)
+    #pfModelValues <<- values(model, latentDep)
+    #storeModelVals <<- values(model, targetAsScalar)
 
-    modelLP0 <- storeParticleLP + getLogProb(model, topParamsInter)
+    # calculate log likelihood
+    modelLP0 <- storeParticleLP + getLogProb(model, targetAsScalar)
+
+    # generate proposal value
     propValueVector <- generateProposalVector()
-    values(model, topParamsInter) <<- propValueVector
+    #values(model, topParamsInter) <<- propValueVector
+    my_setAndCalculate$run(propValueVector)
 
-    particleLP <- my_particleFilter$run(m = m, iterRun = iterRan, storeModelValues = values(model, targetAsScalar))
+    newLP <- getLogProb(model, topParamsInter)
 
-    modelLP1 <- particleLP + getLogProb(model, topParamsInter)
+    if(!is.nan(newLP) & (newLP != -Inf)) {
+      particleLP <- my_particleFilter$run(m = m, iterRun = iterRan, storeModelValues = values(model, targetAsScalar))
+      modelLP1 <- particleLP + getLogProb(model, targetAsScalar)
+    } else {
+      modelLP1 <- -Inf
+    }
 
-    jump <- my_decideAndJump$run(modelLP1, modelLP0, 0, 0, iterRan)#, pfModelValues, predVals, topParamsVals)
+    jump <- my_decideAndJump$run(modelLP1, modelLP0, 0, 0)#, iterRan)#, pfModelValues, predVals, topParamsVals)
 
     if(jump){
-      nimCopy(from = model, to = mvSaved, row = 1, nodes = topParamsInter, logProb = TRUE)
-      nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesDeterm1, logProb = FALSE)
-      nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesStoch1, logProbOnly = TRUE)
+      #nimCopy(from = model, to = mvSaved, row = 1, nodes = topParamsInter, logProb = TRUE)
+      #nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesDeterm1, logProb = FALSE)
+      #nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesStoch1, logProbOnly = TRUE)
       index <- ceiling(runif(1, 0, m))
       copy(particleMV, model, latents, latents, index)
       calculate(model, latentDep)
       copy(from = model, to = mvSaved, nodes = latentDep, row = 1, logProb = TRUE)
-
     }else{
+      my_particleFilter$setLastLogLik(storeParticleLP)
       ## if we don't jump, replace model latent nodes with saved latent nodes
-      values(model, latentDep) <<- pfModelValues
-      values(model, targetAsScalar) <<- storeModelVals
-      model$calculate()
-      nimCopy(from = model, to = mvSaved, row = 1, nodes = topParamsInter, logProb = TRUE)
-      nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesDeterm1, logProb = FALSE)
-      nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesStoch1, logProbOnly = TRUE)
-      nimCopy(from = model, to = mvSaved, nodes = latentDep, row = 1, logProb = TRUE)
+      #values(model, latentDep) <<- pfModelValues
+      #values(model, targetAsScalar) <<- storeModelVals
+      #model$calculate()
+      #nimCopy(from = mvSaved, to = model, row = 1, nodes = topParamsInter, logProb = TRUE)
+      #nimCopy(from = mvSaved, to = model, row = 1, nodes = copyNodesDeterm1, logProb = FALSE)
+      #nimCopy(from = mvSaved, to = model, row = 1, nodes = copyNodesStoch1, logProbOnly = TRUE)
+      #nimCopy(from = mvSaved, to = model, row = 1, nodes = latents, logProb = TRUE)
+      nimCopy(from = mvSaved, to = model, nodes = latentDep, row = 1, logProb = TRUE)
+      # nimCopy(from = model, to = mvSaved, row = 1, nodes = topParamsInter, logProb = TRUE)
+      # nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesDeterm1, logProb = FALSE)
+      # nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesStoch1, logProbOnly = TRUE)
+      # nimCopy(from = model, to = mvSaved, nodes = latentDep, row = 1, logProb = TRUE)
     }
 
 
@@ -854,8 +861,8 @@ sampler_RW_PF_blockUpdateV2 <- nimbleFunction(
     #Save the latents as scalars for the model fitted with the reduced model parameters
 
     # Latent states
-    latentAsScalar <- model$expandNodeNames(latents, returnScalarComponents = TRUE)
-    #predictivePars <- target[!target %in% topParams]
+    latentAsScalar <- model$expandNodeNames(latents,
+                                            returnScalarComponents = TRUE)
 
     my_setAndCalculate <- setAndCalculate(model, topParamsInter)
     my_setAndCalculateUpdate <-  mySetAndCalculateUpdate(model = model,
@@ -871,10 +878,7 @@ sampler_RW_PF_blockUpdateV2 <- nimbleFunction(
     my_particleFilter$setLastTimeRan(0)
 
     particleMV <- my_particleFilter$mvEWSamples
-
     pfModelValues <- rep(0, length(latentDep))
-    #targetModelValues <- rep(0, length(topParamsInter))
-    # topParamsValues <- rep(0, length(topParams))
     storeModelVals <- rep(0, length(allParticlePars))
 
 
@@ -949,7 +953,7 @@ sampler_RW_PF_blockUpdateV2 <- nimbleFunction(
       declare(LLEst, double(1, nVarReps))
       if(nVarEsts < mBurnIn) {  # checks whether we have enough var estimates to get good approximation
         for(i in 1:nVarReps)
-          LLEst[i] <- my_particleFilter$run(m = tempM, iterRun = iterRan, storeModelValues = values(model, targetAsScalar))
+          LLEst[i] <- my_particleFilter$run(m = tempM, iterRun = iterRan, storeModelValues = values(model, allParticlePars))
         ## next, store average of var estimates
         if(nVarEsts == 1)
           storeLLVar <<- var(LLEst)/mBurnIn
@@ -963,7 +967,7 @@ sampler_RW_PF_blockUpdateV2 <- nimbleFunction(
       else {  # once enough var estimates have been taken, use their average to compute m
         m <<- m*storeLLVar/(0.92^2)
         m <<- ceiling(m)
-        storeParticleLP <<- my_particleFilter$run(m, iterRun = iterRan, storeModelValues = values(model, targetAsScalar))
+        storeParticleLP <<- my_particleFilter$run(m, iterRun = iterRan, storeModelValues = values(model, allParticlePars))
         optimizeM <<- 0
       }
     },
