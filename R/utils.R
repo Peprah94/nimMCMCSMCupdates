@@ -322,7 +322,7 @@ myDecideAndJump <- nimbleFunction(
     #extraStoch <- copyNodesStoch[!copyNodesStoch %in% model$expandNodeNames(latents) ]
     #index <- ceiling(runif(1, 0, m))
   },
-  run = function(modelLP1 = double(), modelLP0 = double(), propLP1 = double(), propLP0 = double(), iterRan = integer() ){#, pfModelValues = double(), predVals = double(), topParamsVals = double()) {
+  run = function(modelLP1 = double(), modelLP0 = double(), propLP1 = double(), propLP0 = double()){#, iterRan = integer() ){#, pfModelValues = double(), predVals = double(), topParamsVals = double()) {
     logMHR <- modelLP1 - modelLP0 - propLP1 + propLP0
     jump <- decide(logMHR)
     #if(jump) {
@@ -340,6 +340,9 @@ myDecideAndJump <- nimbleFunction(
     return(jump)
   }
 )
+
+
+## create the lists of calcNodes and copyNodes for use in MCMC samplers
 
 myMcmc_determineCalcAndCopyNodes <- function(model, target) {
   targetExpanded <- model$expandNodeNames(target)

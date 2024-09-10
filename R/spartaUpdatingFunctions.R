@@ -361,6 +361,7 @@ spartaNimWeights <- function(model, #nimbleModel
   message("Running the PF MCMC")
   #run MCMC
   timeStart2 <- Sys.time()
+  postburninTimeResult <- system.time({
   mcmc.out <- nimble::runMCMC(compiledList$modelMCMC,
                               niter = n.iter,
                               nchains = n.chains,
@@ -372,7 +373,12 @@ spartaNimWeights <- function(model, #nimbleModel
                               samplesAsCodaMCMC = TRUE,
                               summary = TRUE,
                               WAIC = FALSE)
-timeEnd <- Sys.time()
+  })
+
+  postburninTime <- postburninTimeResult[3]
+
+
+  timeEnd <- Sys.time()
 
 timetaken1 <- timeEnd - timeStart1
 timetaken2 <- timeEnd - timeStart2
@@ -408,7 +414,7 @@ timetaken2 <- timeEnd - timeStart2
   retList <- list()
   retList$samples <- mcmc.out$samples
   retList$summary <- mcmc.out$summary
-  retList$timeRun <-  timetaken2
+  retList$timeRun <-  postburninTime
   return(retList)
 }
 
@@ -598,7 +604,7 @@ dims <- lapply(nodes[1:2], function(n) nimDim(model[[n]]))
   # Dimensions of variables
   if(length(unique(dims)) > 1)
     stop('sizes or dimensions of latent states varies')
-  vars <- c(model$getVarNames(nodes =  nodes), target)
+  vars <- c(model$getVarNames(nodes =  nodes), model$getVarNames(nodes = target))
 
   modelSymbolObjects <- model$getSymbolTable()$getSymbolObjects()[vars]
 
@@ -775,6 +781,7 @@ spartaNimUpdates <- function(model, #nimbleModel
                              propCov = 'identity',
                              propCov1 = 'identity',
                              adaptiveSampler = FALSE,
+                             adaptScaleOnly = FALSE,
                              samplerType = "type1",
                              nCores = NULL
 ){
@@ -822,6 +829,7 @@ spartaNimUpdates <- function(model, #nimbleModel
                                   propCov,
                                   propCov1,
                                   adaptiveSampler,
+                                  adaptScaleOnly,
                                   samplerType,
                                   nCores){
 
@@ -850,15 +858,27 @@ print(dirName)
       timeStart1 <- Sys.time()
 
       # create modelValues for MCMC output
+      if(!is.null(extraVars)){
       updateVars <- updateUtils(model = model, #reduced model
                                 reducedModel = reducedModel,
                                 mcmcOut = postReducedMCMC$samples[[i]],
                                 latent = latent,
-                                target = c(target, additionalPars),
+                                target = c(target, additionalPars, extraVars),
                                 n.iter = n.iter ,
                                 m = nParFiltRun,
                                 iNodeAll = TRUE,
                                 timeIndex = timeIndex)
+      } else {
+        updateVars <- updateUtils(model = model, #reduced model
+                                  reducedModel = reducedModel,
+                                  mcmcOut = postReducedMCMC$samples[[i]],
+                                  latent = latent,
+                                  target = c(target, additionalPars),
+                                  n.iter = n.iter ,
+                                  m = nParFiltRun,
+                                  iNodeAll = TRUE,
+                                  timeIndex = timeIndex)
+      }
 
       mvSamplesEst =  updateVars$mvSamplesEst #saved weights
 
@@ -921,14 +941,24 @@ print(dirName)
        #compiledParticleFilter <- compileNimble(estimationModel,  particleFilterEst)
 #
       #compiledParticleFilter$particleFilterEst$run(m = 10, iterRun = 3, storeModelValues = values(estimationModel, targetAsScalar))
- #compiledParticleFilter$particleFilterEst$mvWSamples[["x"]][[100]][1:10, 51]
-
+ #colMeans(compiledParticleFilter$particleFilterEst$mvWSamples[["z"]][[5]])
 
       message("Setting up the MCMC Configuration")
       #newModel <- model$newModel(replicate = TRUE)
+
+      if("samplerTimes" %in% c(additionalPars)){
+       # additionalPars <- additionalPars[!additionalPars %in% "samplerTimes"]
       modelMCMCconf <- nimble::configureMCMC(model,
-                                             monitors = c(target, latent, additionalPars),
+                                             monitors = c(target, latent,
+                                                          additionalPars[!additionalPars %in% "samplerTimes"]),
+                                             monitors2 = c("samplerTimes"),
                                              nodes = NULL)#, monitors = c(target, latent, additionalPars))
+
+      } else {
+        modelMCMCconf <- nimble::configureMCMC(model,
+                                               monitors = c(target, latent, additionalPars),
+                                               nodes = NULL)
+      }
     if(samplerType == "type2"){
 
       model <-  modelMCMCconf$model
@@ -1138,7 +1168,8 @@ print(dirName)
                                type = 'RW_PF_blockUpdate',
                                control = list(latents = latent,
                                               #target = target,
-                                              adaptive = TRUE,
+                                              adaptive = adaptiveSampler,
+                                              adaptScaleOnly = adaptScaleOnly,
                                               propCov = propCov,
                                               propCov1 = propCov1,
                                               #adaptInterval = 100,
@@ -1169,10 +1200,10 @@ print(dirName)
                                             )
       timeStart2 <- Sys.time()
       message("Running the PF MCMC")
-      #run MCMC
-     #  compiledList$modelMCMC$run(niter = n.iter,
-     #                             #nburnin = n.burnin,
-     #                             time = TRUE)
+      # #run MCMC
+      # compiledList$modelMCMC$run(niter = n.iter,
+      #                            #nburnin = n.burnin,
+      #                            time = TRUE)
      #
      # system.time(mcmc.out <- nimble::runMCMC(compiledList$modelMCMC,
      #                              niter = n.iter,
@@ -1207,16 +1238,28 @@ print(dirName)
 
       timetaken1 <- timeEnd - timeStart1
       timetaken2 <- timeEnd - timeStart2
-
-      #compiledList$modelMCMC$samplerFunctions[[1]]$getScaleHistory()
-      #compiledList$modelMCMC$samplerFunctions[[1]]$getAcceptanceHistory()
-      #compiledList$modelMCMC$samplerFunctions[[1]]$getPropCovHistory()
+      if(getNimbleOption('MCMCsaveHistory')){
+      scaleHistory <- compiledList$modelMCMC$samplerFunctions[[1]]$getScaleHistory()
+      acceptanceHistory <- compiledList$modelMCMC$samplerFunctions[[1]]$getAcceptanceHistory()
+      covarianceHistory <- compiledList$modelMCMC$samplerFunctions[[1]]$getPropCovHistory()
+      } else {
+        scaleHistory <- NA
+        acceptanceHistory <- NA
+        covarianceHistory <- NA
+      }
 #compiledList$modelMCMC$mvSamples
 #compiledList$modelMCMC$mvSaved
       retList <- list()
       retList$timeRun <- timetaken2
       retList$samples <- mcmc.out$samples
       retList$elapsedTime <- postburninTime
+
+if("samplerTimes" %in% c(additionalPars)) retList$samples2 <- mcmc.out$samples2
+if(getNimbleOption('MCMCsaveHistory')){
+retList$scaleHistory <- scaleHistory
+retList$acceptanceHistory <- acceptanceHistory
+retList$covarianceHistory <- covarianceHistory
+}
       return(retList)
     }
 
@@ -1241,6 +1284,7 @@ print(dirName)
                                       propCov,
                                       propCov1,
                                       adaptiveSampler,
+                                      adaptScaleOnly,
                                       samplerType,
                                       nCores = n.chains,
                                       mc.cores = nCores)
@@ -1264,22 +1308,47 @@ print(dirName)
                           propCov,
                           propCov1,
                           adaptiveSampler,
+                          adaptScaleOnly,
                           samplerType,
                           nCores = 1)
   }
 
-
-
-  #samplesList <- lapply(as.list(1:n.chains), function(chain.iter))
+#########################################
+# POST-PROCESS SAMPLES GENERATED
+#########################################
 
   #set names for samples frpm various chains
   names(samplesList)  <- paste0('chain', 1:n.chains)
 
   # Time taken for each chain to run
-  timetakenRun <- lapply(samplesList, function(x){x[[1]]})
+  timetakenRun <- lapply(samplesList, function(x){x[[3]]})
   timetakenRun$all.chains <- sum(do.call('c', timetakenRun))
 
-  #as samplesAsCodaMCMC
+  # get sampler times for all
+  if("samplerTimes" %in% c(additionalPars)){
+    samplesList2 <- coda::as.mcmc.list(lapply(samplesList, function(x){coda::as.mcmc(x[[4]])}))
+    #Estimating summary
+    summaryObjectTimes <- lapply(samplesList2, samplesSummary)
+    names(summaryObjectTimes) <- paste0('chain', 1:n.chains)
+    summaryObjectTimes$all.chains <- samplesSummary(do.call('rbind', samplesList2))
+  } else {
+    samplesList2 <- NA
+    summaryObjectTimes <- NA
+  }
+
+
+  # Post process the covariance and acceptance history
+  if(getNimbleOption('MCMCsaveHistory')){
+scaleHistory <- lapply(samplesList, function(x){x[[5]]})
+scaleHistory$all.chains <- do.call("c", scaleHistory)
+
+acceptanceHistory <- lapply(samplesList, function(x){x[[6]]})
+acceptanceHistory$all.chains <- do.call("c", acceptanceHistory)
+
+propCovHistory <- lapply(samplesList, function(x){x[[7]]})
+}
+
+  # Target samples of interest
   samplesList1 <- coda::as.mcmc.list(lapply(samplesList, function(x){coda::as.mcmc(x[[2]])}))
 
   #Estimating summary
@@ -1295,8 +1364,41 @@ print(dirName)
 retList$samples <- samplesList1
 retList$summary <- summaryObject
 retList$timeRun <- timetakenRun
+retList$sampleTimes <- samplesList2
+retList$summarySampleTimes <- summaryObjectTimes
+if(getNimbleOption('MCMCsaveHistory')){
+retList$scaleHistory <- scaleHistory
+retList$acceptanceHistory <- acceptanceHistory
+retList$propCovHistory <- propCovHistory
+}
   return(retList)
 }
+
+
+
+
+
+
+#' Fit a full or reduced state-space model using either MCMC or SMC methods
+#'
+#' @description Replicate MCMC samples from an already fitted model.
+#'
+#' @param mcmcout MCMC samples.
+#' @param N Number of samples needed now.
+#' @param nChains  Number of MCMC chains.
+#' @author  Kwaku Peprah Adjei
+#'
+#'  This function provides an implementation to fit reduced models that can be used to
+#'  update the model parameters and latent state distribution in the future i.e. fit the reduced
+#'  model. It can also be used to fit the full model that can be compared to the
+#'  reduced and updated models
+#'
+#' @export
+#'
+#' @family smc update methods
+#'
+#' @examples
+#' ## For illustration only.
 
 replicateMCMCchains <- function(mcmcout, N, nChains){
 
@@ -1316,7 +1418,7 @@ replicateMCMCchains <- function(mcmcout, N, nChains){
 }
 
 # Convert Sparta results to mcmc results
-convertSpartaResults <- function(out){
+convertSpartaResults <- function(out, samplerTimes = TRUE){
   if(!is.character(class(out)) && class(out) == "occDet") stop("Class must be of occDet")
 
   #extract number of chains
@@ -1328,14 +1430,33 @@ convertSpartaResults <- function(out){
     #get the results in an appropriate format to match the node names in NIMBLE
     #this works for nodes with dimension greater than one
     colnames(ret) <- stringr::str_replace_all(colnames(ret), c("," = ", "))
+
+if(samplerTimes){
+  samplerTimes <- matrix(1000, nrow = nrow(ret), ncol = 4)
+  colnames(samplerTimes) <- paste0("samplerTimes[", 1:4, "]")
+
+  # Put both ret and samplerTimes together
+  ret <- cbind(ret, samplerTimes)
+}
+
     return(ret)
   }
   )
   names(samplesList)  <- paste0('chain', 1:n.chains)
 
+
+  # Target samples of interest
+  samplesList1 <- coda::as.mcmc.list(lapply(samplesList, function(x){coda::as.mcmc(x)}))
+
+  #Estimating summary
+  summaryObject <- lapply(samplesList1, samplesSummary)
+  names(summaryObject) <- paste0('chain', 1:n.chains)
+  summaryObject$all.chains <- samplesSummary(do.call('rbind', samplesList1))
+
   #Return results
   retList <- list()
   retList$samples <- samplesList
+  retList$summaryObject <- summaryObject
   retList$n.keep <- out$BUGSoutput$n.keep
   return(retList)
 }

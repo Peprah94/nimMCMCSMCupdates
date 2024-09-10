@@ -44,6 +44,7 @@ bootFStepUpdate <- nimbleFunction(
 
       modelSteps <- particleFilter_splitModelSteps(model, nodes, iNode, notFirst)
       prevDeterm <- modelSteps$prevDeterm
+     # print(prevDeterm)
       calc_thisNode_self <- modelSteps$calc_thisNode_self
       calc_thisNode_deps <- modelSteps$calc_thisNode_deps
       targetNodesAsScalar <- model$expandNodeNames(target, returnScalarComponents = TRUE)
@@ -131,9 +132,9 @@ bootFStepUpdate <- nimbleFunction(
         #calc_thisNode_self1 <- calc_thisNode_self[!model$isData(calc_thisNode_self)]
         model$simulate(calc_thisNode_self1)
         values(model, calc_thisNode_self2) <<- calc_thisNode_self2Vals
-       # print(values(model, calc_thisNode_self2))
+       # print(values(model, calc_thisNode_self1))
       }else{
-model$simulate(calc_thisNode_self)
+      model$simulate(calc_thisNode_self)
       }
 
       #model$simulate(calc_thisNode_deps)
