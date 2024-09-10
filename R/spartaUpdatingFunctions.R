@@ -278,6 +278,10 @@ spartaNimWeights <- function(model, #nimbleModel
                             project = nMCompile)
 
     timeStart2 <- Sys.time()
+
+
+
+    postburninTimeResult <- system.time({
     mcmc.out <- runMCMC(coMCMC,
                             niter = n.iter,
                             nchains = n.chains,
@@ -288,6 +292,9 @@ spartaNimWeights <- function(model, #nimbleModel
                             samplesAsCodaMCMC = TRUE,
                             summary = TRUE,
                             WAIC = FALSE)
+    })
+
+    postburninTime <- postburninTimeResult[3]
 
     timeEnd <- Sys.time()
 

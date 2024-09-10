@@ -338,7 +338,7 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     # If there are extraVars, we need to add them to the target as scalar
     # to correctly estimate the log-likelihood
     extraVars <- model$expandNodeNames(extraVars)
-    print(extraVars)
+   # print(extraVars)
     if(length(secondRunPars) == 0){
       extras <- FALSE
     } else {
