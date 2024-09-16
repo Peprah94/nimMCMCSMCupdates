@@ -48,7 +48,7 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     ## control list extraction
     adaptive            <- extractControlElement(control, 'adaptive',             FALSE)
     adaptScaleOnly      <- extractControlElement(control, 'adaptScaleOnly',       FALSE)
-    adaptInterval       <- extractControlElement(control, 'adaptInterval',        200)
+    adaptInterval       <- extractControlElement(control, 'adaptInterval',        500)
     adaptFactorExponent <- extractControlElement(control, 'adaptFactorExponent',  0.8)
     scale               <- extractControlElement(control, 'scale',                1)
     propCov             <- extractControlElement(control, 'propCov',              'identity')
@@ -472,10 +472,12 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     if(!is.integer(finalTargetIndex) | length(finalTargetIndex) != 1 | is.na(finalTargetIndex[1]))   stop('problem with target node in RW_block sampler')
     calcNodesProposalStage <- calcNodes[1:finalTargetIndex]
     calcNodesDepStage <- calcNodes[-(1:finalTargetIndex)]
-
+    print(calcNodesProposalStage )
+    print(calcNodesDepStage)
     # Make sure calcNodesProposalStage & calcNodesDepStage is not in latent node
     calcNodesProposalStage <- calcNodesProposalStage[!calcNodesProposalStage %in% latentAsScalar]
     calcNodesDepStage <- calcNodesDepStage[!calcNodesDepStage %in% latentAsScalar]
+
 
    # print(extraTargetStore)
 
@@ -530,6 +532,7 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
 
     # calculate log likelihood
     tt <<- tt + run.time( modelLP0 <- storeParticleLP + getLogProb(model, calcNodesProposalStage) + getLogProb(model, calcNodesDepStage))
+    if(extras) tt <<- tt + run.time( modelLP0 <- modelLP0 + getLogProb(model, extraVars))
 
     # generate proposal value
     tt <<- tt + run.time( propValueVector <- generateProposalVector())
@@ -544,6 +547,7 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
     } else {
       tt <<- tt + run.time(  modelLP1 <- -Inf)
     }
+    if(extras) tt <<- tt + run.time( modelLP1 <- modelLP1 + getLogProb(model, extraVars))
 
     tt <<- tt + run.time(jump <- my_decideAndJump$run(modelLP1, modelLP0, 0, 0))#, iterRan)#, pfModelValues, predVals, topParamsVals)
 #print(jump)
@@ -570,12 +574,13 @@ sampler_RW_PF_blockUpdate <- nimbleFunction(
       tt <<- tt + run.time(nimCopy(from = mvSaved, to = model, row = 1, nodes = copyNodesStoch1, logProbOnly = TRUE))
       #nimCopy(from = mvSaved, to = model, row = 1, nodes = latents, logProb = TRUE)
       tt <<- tt + run.time(nimCopy(from = mvSaved, to = model, nodes = latentDep, row = 1, logProb = TRUE))
-      tt <<- tt + run.time(nimCopy(from = model, to = mvSaved, row = 1, nodes = latents, logProb = TRUE))
+      tt <<- tt + run.time(nimCopy(from = mvSaved, to = model, row = 1, nodes = latents, logProb = TRUE))
       # nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesDeterm1, logProb = FALSE)
       # nimCopy(from = model, to = mvSaved, row = 1, nodes = copyNodesStoch1, logProbOnly = TRUE)
       # nimCopy(from = model, to = mvSaved, nodes = latentDep, row = 1, logProb = TRUE)
     }
 
+if(extras) tt <<- tt + run.time(nimCopy(from = model, to = mvSaved, row = 1, nodes = extraVars, logProb = TRUE))
 
     if(jump & optimizeM) tt <<- tt + run.time(optimM())
     if(adaptive)    tt <<- tt + run.time( adaptiveProcedure(jump))

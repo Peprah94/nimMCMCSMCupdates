@@ -603,7 +603,7 @@ returnlist = list(
   extraNodes <- model$expandNodeNames(extraNodes)
 
   # Get the dimensions of latent nodes
-dims <- lapply(nodes[1:2], function(n) nimDim(model[[n]]))
+  dims <- lapply(nodes[1:2], function(n) nimDim(model[[n]]))
 
 # target variables
   target <- target[!target %in% latent]
@@ -790,6 +790,7 @@ spartaNimUpdates <- function(model, #nimbleModel
                              adaptiveSampler = FALSE,
                              adaptScaleOnly = FALSE,
                              samplerType = "type1",
+                             initsList = NULL,
                              nCores = NULL
 ){
 
@@ -838,6 +839,7 @@ spartaNimUpdates <- function(model, #nimbleModel
                                   adaptiveSampler,
                                   adaptScaleOnly,
                                   samplerType,
+                                  initsList,
                                   nCores){
 
     target = MCMCconfiguration[["target"]]
@@ -956,16 +958,18 @@ print(dirName)
       if("samplerTimes" %in% c(additionalPars)){
        # additionalPars <- additionalPars[!additionalPars %in% "samplerTimes"]
       modelMCMCconf <- nimble::configureMCMC(model,
-                                             monitors = c(target, latent,
+                                             monitors = c(target, latent, extraVars,
                                                           additionalPars[!additionalPars %in% "samplerTimes"]),
                                              monitors2 = c("samplerTimes"),
                                              nodes = NULL)#, monitors = c(target, latent, additionalPars))
 
       } else {
         modelMCMCconf <- nimble::configureMCMC(model,
-                                               monitors = c(target, latent, additionalPars),
+                                               monitors = c(target, latent, extraVars, additionalPars),
                                                nodes = NULL)
       }
+
+
     if(samplerType == "type2"){
 
       model <-  modelMCMCconf$model
@@ -1231,7 +1235,7 @@ print(dirName)
                                    niter = n.iter,
                                    nchains = 1,
                                    nburnin = n.burnin,
-                                   #inits = initsList,
+                                   inits = initsList,
                                    thin = n.thin,
                                    setSeed = TRUE,
                                    samples= 123,
@@ -1293,6 +1297,7 @@ retList$covarianceHistory <- covarianceHistory
                                       adaptiveSampler,
                                       adaptScaleOnly,
                                       samplerType,
+                                      initsList,
                                       nCores = n.chains,
                                       mc.cores = nCores)
   } else{
@@ -1317,6 +1322,7 @@ retList$covarianceHistory <- covarianceHistory
                           adaptiveSampler,
                           adaptScaleOnly,
                           samplerType,
+                          initsList,
                           nCores = 1)
   }
 

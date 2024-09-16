@@ -13,7 +13,7 @@ nimbleOptions(MCMCsaveHistory = TRUE)
 nIterations = 50000
 nChains = 2
 nBurnin = 20000
-nThin = 1
+nThin = 10
 
 ################################
 #  Function to simulate data
@@ -146,15 +146,15 @@ constants <- list(
   aTrue = 0.5,
   bTrue = 1,
   cTrue = 1,
-  muTrue = 1,
-   mu = example1ReducedModelTrue$summary$all.chains["mu", 1]
+  muTrue = 1
 )
 
 
 inits <- list(
   a = example1ReducedModelTrue$summary$all.chains["a",1 ],
   b = example1ReducedModelTrue$summary$all.chains["b", 1],
-  c = example1ReducedModelTrue$summary$all.chains["c",1 ]
+  c = example1ReducedModelTrue$summary$all.chains["c",1 ],
+  mu = example1ReducedModelTrue$summary$all.chains["mu", 1]
 )
 
 
@@ -169,22 +169,27 @@ newModelUpdated <- nimbleModel(stateSpaceCode,
 # Fit model with results from fitted reduced MCMC model fit
 ## set options to make history accessible
 
+# Resample the MCMC results
+replicatedReducedModel <- nimMCMCSMCupdates::replicateMCMCchains(example1ReducedModelTrue,
+                                                   N = nIterations,
+                                                   nChains = nChains)
 
 example1UpdatedModelTrueBF <- nimMCMCSMCupdates::spartaNimUpdates(model = newModelUpdated, #nimble model
                                                                                reducedModel = newModelReduced,
                                                                                latent = "x", #latent variable
                                                                                nParFiltRun = 100,
-                                                                               mcmcScale = 0.1,
-                                                                               extraVars = NULL,
+                                                                               mcmcScale = 2,
+                                                                              #extraVars = c("mu"),
                                                                                adaptiveSampler = TRUE,
-                                                                                adaptScaleOnly = FALSE,
-                                                                               MCMCconfiguration = list(target = c('a', 'c', 'b'),
-                                                                                                        additionalPars = c("x", "ahat", "chat", "bhat", "samplerTimes"),
-                                                                                                        n.iter = (nIterations - nBurnin)/2,
+                                                                                adaptScaleOnly = TRUE,
+                                                                  initsList = inits,
+                                                                               MCMCconfiguration = list(target = c('a', 'c', 'b', "mu"),
+                                                                                                        additionalPars = c("x", "ahat", "chat", "bhat", "samplerTimes", "muhat"),
+                                                                                                        n.iter = nIterations,
                                                                                                         n.chains = nChains,
-                                                                                                        n.burnin = 500,
-                                                                                                        n.thin = 1),  #saved loglikelihoods from reduced model
-                                                                               postReducedMCMC = example1ReducedModelTrue,# MCMC summary to use as initial values
+                                                                                                        n.burnin = nBurnin,
+                                                                                                        n.thin = nThin),  #saved loglikelihoods from reduced model
+                                                                               postReducedMCMC = replicatedReducedModel,# MCMC summary to use as initial values
                                                                                pfControl = list(saveAll = TRUE,
                                                                                                 smoothing = TRUE,
                                                                                                 mcmc = TRUE,

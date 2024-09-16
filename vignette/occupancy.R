@@ -27,7 +27,7 @@ dynOccupancyModels <- function(nyears,
                                nsites,
                                nvisits,
                                fixedPars = list(alphaPhi = 2,
-                                                betaPhi = 1.5),
+                                                betaPhi = - 1.5),
                                hyperParsSig = list(alphaP = 0.8,
                                                    betaP = 1,
                                                    alphaGamma = 0.3,
@@ -49,10 +49,10 @@ dynOccupancyModels <- function(nyears,
                        ncol = nyears)
 
   # Simulating parameters
-  alphaP <- - 0.1
-  betaP <- 0.2 #rnorm(1, mean = 0, sd = hyperParsSig$betaP)
-  alphaPsi <- 2  #rnorm(1, mean = 0, sd = hyperParsSig$alphaPsi)
-  betaPsi <- -3 #rnorm(1, mean = 0, sd = hyperParsSig$betaPsi)
+  alphaP <- 1
+  betaP <- -2 #rnorm(1, mean = 0, sd = hyperParsSig$betaP)
+  alphaPsi <- 1  #rnorm(1, mean = 0, sd = hyperParsSig$alphaPsi)
+  betaPsi <- -1 #rnorm(1, mean = 0, sd = hyperParsSig$betaPsi)
   alphaGamma <- -2 #rnorm(1, mean = 0, sd = hyperParsSig$alphaGamma)
   betaGamma <- 1 #rnorm(1, mean = 0, sd = hyperParsSig$betaGamma)
   # alphaP <- rnorm(1, mean = 0, sd = hyperParsSig$alphaP)
@@ -328,7 +328,9 @@ example2ReducedModelTrue <- spartaNimWeights(model = newModelReduced,
 # save(example2ReducedModelTrue, file= paste0("example4ReducedBootstrapTrueM",numParticles,"Ind",iNodePrev,".RData"))
 
 #load(paste0("example4ReducedBootstrapTrue",i,".RData"))
-
+replicatedReducedModel <- nimMCMCSMCupdates::replicateMCMCchains(example2ReducedModelTrue,
+                                                                 N = nIterations,
+                                                                 nChains = nChains)
 ################
 # Updated Model
 ################
@@ -352,9 +354,9 @@ data <- list(
 constants <- list(
   nyears = nyears,
   nsites = nsites,
-  nvisits = nvisits,
-  alphaPhi  = example2ReducedModelTrue$summary$all.chains["alphaPhi",1 ],
-  betaPhi  = example2ReducedModelTrue$summary$all.chains["betaPhi",1 ]
+  nvisits = nvisits#,
+ # alphaPhi  = example2ReducedModelTrue$summary$all.chains["alphaPhi",1 ],
+  #betaPhi  = example2ReducedModelTrue$summary$all.chains["betaPhi",1 ]
 )
 
 
@@ -370,8 +372,8 @@ inits <- list(
   alphaP =  example2ReducedModelTrue$summary$all.chains["alphaP",1 ],
   betaP =  example2ReducedModelTrue$summary$all.chains["betaP",1 ],
   alphaPsi=  example2ReducedModelTrue$summary$all.chains["alphaPsi",1 ],
-  #alphaPhi  = example2ReducedModelTrue$summary$all.chains["alphaPhi",1 ],
-  #betaPhi  = example2ReducedModelTrue$summary$all.chains["betaPhi",1 ],
+  alphaPhi  = example2ReducedModelTrue$summary$all.chains["alphaPhi",1 ],
+  betaPhi  = example2ReducedModelTrue$summary$all.chains["betaPhi",1 ],
   betaPsi= example2ReducedModelTrue$summary$all.chains["betaPsi",1 ]#,
  # colonisationProb = example2ReducedModelTrue$summary$all.chains["colonisationProb",1 ]
 )
@@ -402,24 +404,25 @@ example2UpdatedModelTrue <- spartaNimUpdates(model = newModelUpdated, #nimble mo
                                              #nParFiltRun = 1000,
                                              pfType = "bootstrap",
                                              #propCov = c(1,1,1,1,1,1,0.01)*diag(7),
-                                             mcmcScale = 0.1,
+                                             mcmcScale = 1,
                                              adaptiveSampler = TRUE,
                                              adaptScaleOnly = TRUE,
+                                             initsList = inits,
                                              extraVars = c('alphaPhi', 'betaPhi'),
                                              MCMCconfiguration = list(target = c(#'alphaPSig', 'betaPSig',
                                                                                  #'alphaPsiSig', 'betaPsiSig',
                                                                                  'alphaGamma', 'betaGamma',
-                                                                                 #'alphaPhi', 'betaPhi',
+                                                                                # 'alphaPhi', 'betaPhi',
                                                                                 # 'alphaGammaSig', 'betaGammaSig',
                                                                                  'alphaP', 'betaP',
                                                                                  'alphaPsi', 'betaPsi'),
                                                                       additionalPars = c("z", "psi.fs", "samplerTimes"),
-                                                                      n.iter = (nIterations - nBurnin)/nThin,
-                                                                      n.chains = nChains,
-                                                                      n.burnin = 1000,
-                                                                      n.thin = 1
+                                                                      n.iter = nIterations,
+                                                                      n.chains = 1,
+                                                                      n.burnin = nBurnin,
+                                                                      n.thin = nThin
                                              ),  #saved loglikelihoods from reduced model
-                                             postReducedMCMC = example2ReducedModelTrue,# MCMC summary to use as initial values
+                                             postReducedMCMC = replicatedReducedModel,# MCMC summary to use as initial values
                                              pfControl = list(saveAll = TRUE,
                                                               timeIndex = 2,
                                                               smoothing = TRUE,
